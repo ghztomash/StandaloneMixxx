@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DEVICE_NAME="DDJFLX4"
-MIXXX_BIN="/home/pi/Documents/mixxx/build/mixxx"
+MIXXX_BIN="/usr/bin/mixxx"
 LOG_FILE="/home/pi/.mixxx/mixxx_launcher.log"
 SLEEP_INTERVAL=1
 
