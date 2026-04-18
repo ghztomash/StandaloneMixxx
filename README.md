@@ -2,6 +2,8 @@
 
 This is a short guide for setting up Mixxx on a Raspberry Pi to act as a standalone DJ deck with a MIDI controller like DDJ-FLX4.
 
+![Preview](./preview.jpg)
+
 This guide is focused on a Raspberry Pi 5 4GB with a Pimoroni HyperPixel 4.0 touch display, DDJ-FLX4, and Raspberry Pi OS based on Debian 13 Trixie. Other combinations should work in theory, but your mileage may vary.
 
 ## Known Tested Setup
