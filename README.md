@@ -228,7 +228,7 @@ Then open Mixxx and select LateNightMini in Preferences > Interface.
 
 Mixxx already supports [many controllers](https://manual.mixxx.org/2.5/en/hardware/manuals) out of the box.
 
-But if you want the user experience that follows more closely the Rekordbox workflow, install my FLX controller scripts.
+But if you want the user experience that follows more closely the Rekordbox workflow, install [my FLX controller scripts](https://github.com/ghztomash/FLX-Mixxx).
 
 ```sh
 git clone https://github.com/ghztomash/FLX-Mixxx.git ~/.mixxx/controllers
