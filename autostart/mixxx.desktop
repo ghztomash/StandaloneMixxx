@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Exec=/home/pi/mixxx-launcher.sh
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=mixxx launcher
