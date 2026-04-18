@@ -107,20 +107,28 @@ sudo raspi-config
 
 If you need to rotate the display, use the graphical Screen Configuration utility under `Preferences -> Control Centre -> Screens` in Raspberry Pi OS.
 
-If boot is getting stuck waiting for `renderD128`
+If boot is getting stuck waiting for `renderD128`, inspect the LightDM unit and create an override:
 
 ```sh
-# check service
 systemctl cat lightdm
-
-sudo cp /usr/lib/systemd/system/lightdm.service /etc/systemd/system/lightdm.service
-sudo vim /etc/systemd/system/lightdm.service
+sudo systemctl edit lightdm
 ```
 
-Remove `dev-dri-renderD128.device` from `After` and `Wants`, then reload systemd:
+In the editor, reset the `After` and `Wants` lists and re-add the same entries without `dev-dri-renderD128.device`:
+
+```ini
+[Unit]
+After=
+After=systemd-user-sessions.service dev-dri-card0.device
+Wants=
+Wants=dev-dri-card0.device
+```
+
+Compare against `systemctl cat lightdm` on your system and keep any other entries your installed unit needs. Then reload systemd:
 
 ```sh
 sudo systemctl daemon-reload
+systemctl cat lightdm
 ```
 
 ## Install Mixxx
@@ -228,7 +236,7 @@ Then open Mixxx and select the DDJ-FLX2 or DDJ-FLX4 device in Preferences -> Con
 
 ## Auto start
 
-There is a launcher script that monitors connected audio devices and launches Mixxx once a controller is connected.
+I made a launcher script that monitors connected audio devices and launches Mixxx once a controller is connected.
 
 Enable desktop auto-login so the autostart entry can run after boot:
 
