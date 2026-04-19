@@ -1,18 +1,20 @@
 # Standalone Mixxx
 
-This is a short guide for setting up Mixxx on a Raspberry Pi to act as a standalone DJ deck with a MIDI controller like DDJ-FLX4.
+This is a rough outline of the steps I followed to set up Mixxx on a Raspberry Pi as a standalone DJ deck using a MIDI controller like the DDJ-FLX4.
 
 ![Preview](./preview.jpg)
 
-This guide is focused on a Raspberry Pi 5 4GB with a Pimoroni HyperPixel 4.0 touch display, DDJ-FLX4, and Raspberry Pi OS based on Debian 13 Trixie. Other combinations should work in theory, but your mileage may vary.
+It’s mostly the result of trial and error rather than a clean, repeatable process—so think of it more as a reference than a proper step-by-step guide. If you’re looking for something more plug-and-play, it’s worth checking out prebuilt images instead.
 
-## Known Tested Setup
+## My Tested Setup
 
 - Raspberry Pi 5 with 4 GB RAM
 - Pimoroni HyperPixel 4.0 touch display
-- Pioneer DJ DDJ-FLX4 controller
+- Pioneer DJ DDJ-FLX4 and DDJ-FLX2 controller
 - Raspberry Pi OS Desktop based on Debian 13 Trixie
 - Mixxx installed from Raspberry Pi OS packages or built from source
+
+Other combinations should work in theory, but your mileage may vary.
 
 ## Hardware
 
@@ -277,11 +279,7 @@ tail -f ~/.mixxx/mixxx_launcher.log
 - Audio latency is too high: confirm the user is in the `audio` group with `groups`, then check `ulimit -r` and `ulimit -l`.
 - Missing Mixxx icons: install `qt6-svg-plugins`.
 
-## Contributors
-
-- [Tomash GHz](https://github.com/ghztomash)
-
-## References
+## Acknowledgments
 
 For more inspiration, check out the amazing work of:
 
