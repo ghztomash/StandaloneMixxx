@@ -179,6 +179,7 @@ ulimit -l
 ### Building Mixxx from source
 
 If you would like to have additional features like:
+
 - Rekordbox library waveform overviews
 - Rekordbox library cover art
 - Highlight loaded tracks
@@ -195,7 +196,7 @@ cd mixxx
 
 git checkout rekordbox-fixes-integration
 # or
-git checkout rekordbox-pi
+git checkout rekordbox-rpi
 
 # install development tools
 ./tools/debian_buildenv.sh setup
@@ -285,5 +286,5 @@ For more inspiration, check out the amazing work of:
 
 - [Pioneered](https://github.com/timewasternl/Pioneered)
 - [XDJ100SZ](https://github.com/marcmonka/XDJ100SX)
-- https://github.com/EmperorJack/mixxx-pi-config
-- https://github.com/fibonacid/foss-dj-player
+- <https://github.com/EmperorJack/mixxx-pi-config>
+- <https://github.com/fibonacid/foss-dj-player>

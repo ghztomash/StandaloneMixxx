@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEVICE_NAME="DDJFLX4"
+DEVICE_NAME="DDJFLX"
 MIXXX_BIN="/usr/bin/mixxx"
 LOG_FILE="/home/pi/.mixxx/mixxx_launcher.log"
 SLEEP_INTERVAL=1
