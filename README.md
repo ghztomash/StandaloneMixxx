@@ -234,7 +234,16 @@ Mixxx already supports [many controllers](https://manual.mixxx.org/2.5/en/hardwa
 But if you want the user experience that follows more closely the Rekordbox workflow, install [my FLX controller scripts](https://github.com/ghztomash/FLX-Mixxx).
 
 ```sh
-git clone https://github.com/ghztomash/FLX-Mixxx.git ~/.mixxx/controllers
+chmod +x install.sh
+./install.sh
+```
+
+The installer keeps a managed checkout in `~/.local/share/standalone-mixxx/FLX-Mixxx`, updates it on rerun, and symlinks the top-level controller `.js` and `.xml` files into `~/.mixxx/controllers`.
+
+To uninstall the managed symlinks later:
+
+```sh
+./install.sh --remove
 ```
 
 Then open Mixxx and select the DDJ-FLX2 or DDJ-FLX4 device in Preferences -> Controllers. Load the matching mapping named Pioneer DDJ-FLX2-ghz or Pioneer DDJ-FLX4-ghz.
