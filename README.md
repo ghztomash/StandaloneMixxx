@@ -222,7 +222,16 @@ Install a skin that is optimized for small touch screens.
 Like my [LateNightMini](https://github.com/ghztomash/LateNightMini) or the [Pioneered](https://github.com/timewasternl/Pioneered).
 
 ```sh
-git clone https://github.com/ghztomash/LateNightMini.git ~/.mixxx/skins/LateNightMini
+chmod +x install.sh
+./install.sh --skin
+```
+
+The installer keeps a managed checkout in `~/.local/share/standalone-mixxx/LateNightMini`, updates it on rerun, and symlinks it into `~/.mixxx/skins/LateNightMini`.
+
+To uninstall the managed skin symlink later:
+
+```sh
+./install.sh --remove --skin
 ```
 
 Then open Mixxx and select LateNightMini in Preferences > Interface.
@@ -234,16 +243,17 @@ Mixxx already supports [many controllers](https://manual.mixxx.org/2.5/en/hardwa
 But if you want the user experience that follows more closely the Rekordbox workflow, install [my FLX controller scripts](https://github.com/ghztomash/FLX-Mixxx).
 
 ```sh
-chmod +x install.sh
-./install.sh
+./install.sh --controllers
 ```
 
 The installer keeps a managed checkout in `~/.local/share/standalone-mixxx/FLX-Mixxx`, updates it on rerun, and symlinks the top-level controller `.js` and `.xml` files into `~/.mixxx/controllers`.
 
+Run `./install.sh` with no target flag to install or update both the skin and controller scripts in one step.
+
 To uninstall the managed symlinks later:
 
 ```sh
-./install.sh --remove
+./install.sh --remove --controllers
 ```
 
 Then open Mixxx and select the DDJ-FLX2 or DDJ-FLX4 device in Preferences -> Controllers. Load the matching mapping named Pioneer DDJ-FLX2-ghz or Pioneer DDJ-FLX4-ghz.

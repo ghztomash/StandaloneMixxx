@@ -1,24 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/ghztomash/FLX-Mixxx.git}"
-REPO_BRANCH="${REPO_BRANCH:-main}"
-REPO_DIR="${REPO_DIR:-$HOME/.local/share/standalone-mixxx/FLX-Mixxx}"
+CONTROLLER_REPO_URL="${CONTROLLER_REPO_URL:-${REPO_URL:-https://github.com/ghztomash/FLX-Mixxx.git}}"
+CONTROLLER_REPO_BRANCH="${CONTROLLER_REPO_BRANCH:-${REPO_BRANCH:-main}}"
+CONTROLLER_REPO_DIR="${CONTROLLER_REPO_DIR:-${REPO_DIR:-$HOME/.local/share/standalone-mixxx/FLX-Mixxx}}"
 CONTROLLERS_DIR="${CONTROLLERS_DIR:-$HOME/.mixxx/controllers}"
+
+SKIN_NAME="${SKIN_NAME:-LateNightMini}"
+SKIN_REPO_URL="${SKIN_REPO_URL:-https://github.com/ghztomash/LateNightMini.git}"
+SKIN_REPO_BRANCH="${SKIN_REPO_BRANCH:-main}"
+SKIN_REPO_DIR="${SKIN_REPO_DIR:-$HOME/.local/share/standalone-mixxx/LateNightMini}"
+SKINS_DIR="${SKINS_DIR:-$HOME/.mixxx/skins}"
+SKIN_TARGET="$SKINS_DIR/$SKIN_NAME"
 
 declare -a CONTROLLER_SOURCES=()
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--remove|--help]
+Usage: $(basename "$0") [--controllers] [--skin] [--remove] [--help]
 
-Install or update the FLX-Mixxx controller mapping checkout and symlink its
-top-level .js and .xml files into $CONTROLLERS_DIR.
+Install or update the managed FLX-Mixxx controller mapping checkout and the
+LateNightMini skin checkout under ~/.local/share/standalone-mixxx.
+
+By default, installs or removes both components. Use --controllers or --skin
+to limit the action to one component.
 
 Options:
-  --remove  Remove managed controller symlinks. Delete the managed checkout
-            only if it is clean.
-  --help    Show this help text.
+  --controllers  Operate only on controller mappings.
+  --skin         Operate only on the LateNightMini skin.
+  --remove       Remove managed symlinks and delete clean managed checkouts.
+  --help         Show this help text.
 EOF
 }
 
@@ -38,16 +49,9 @@ ensure_prerequisites() {
   require_command readlink
 }
 
-collect_controller_sources() {
-  shopt -s nullglob
-  CONTROLLER_SOURCES=("$REPO_DIR"/*.js "$REPO_DIR"/*.xml)
-  shopt -u nullglob
-
-  [ "${#CONTROLLER_SOURCES[@]}" -gt 0 ] || die "No top-level .js or .xml controller files found in $REPO_DIR"
-}
-
 managed_link_path() {
   local path="$1"
+  local repo_dir="$2"
   local raw_target
   local resolved_target
 
@@ -55,51 +59,86 @@ managed_link_path() {
 
   raw_target=$(readlink "$path")
   case "$raw_target" in
-    "$REPO_DIR"/*) return 0 ;;
+    "$repo_dir"|"$repo_dir"/*) return 0 ;;
   esac
 
   resolved_target=$(readlink -f "$path" 2>/dev/null || true)
   case "$resolved_target" in
-    "$REPO_DIR"/*) return 0 ;;
+    "$repo_dir"|"$repo_dir"/*) return 0 ;;
   esac
 
   return 1
 }
 
 ensure_clean_checkout() {
+  local repo_dir="$1"
+  local repo_url="$2"
+  local repo_branch="$3"
+  local repo_label="$4"
   local origin_url
   local current_branch
   local repo_status
 
-  [ -d "$REPO_DIR/.git" ] || die "Existing path is not a git repository: $REPO_DIR"
+  [ -d "$repo_dir/.git" ] || die "Existing $repo_label path is not a git repository: $repo_dir"
 
-  origin_url=$(git -C "$REPO_DIR" config --get remote.origin.url || true)
-  [ "$origin_url" = "$REPO_URL" ] || die "Existing repository origin mismatch at $REPO_DIR. Expected $REPO_URL but found ${origin_url:-<none>}"
+  origin_url=$(git -C "$repo_dir" config --get remote.origin.url || true)
+  [ "$origin_url" = "$repo_url" ] || die "Existing $repo_label repository origin mismatch at $repo_dir. Expected $repo_url but found ${origin_url:-<none>}"
 
-  current_branch=$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD)
-  [ "$current_branch" = "$REPO_BRANCH" ] || die "Existing repository must be on branch $REPO_BRANCH, found $current_branch at $REPO_DIR"
+  current_branch=$(git -C "$repo_dir" rev-parse --abbrev-ref HEAD)
+  [ "$current_branch" = "$repo_branch" ] || die "Existing $repo_label repository must be on branch $repo_branch, found $current_branch at $repo_dir"
 
-  repo_status=$(git -C "$REPO_DIR" status --porcelain)
-  [ -z "$repo_status" ] || die "Existing repository has local changes at $REPO_DIR. Commit, stash, or discard them before rerunning."
+  repo_status=$(git -C "$repo_dir" status --porcelain)
+  [ -z "$repo_status" ] || die "Existing $repo_label repository has local changes at $repo_dir. Commit, stash, or discard them before rerunning."
 }
 
 clone_or_update_repo() {
-  mkdir -p "$(dirname "$REPO_DIR")" "$CONTROLLERS_DIR"
+  local repo_dir="$1"
+  local repo_url="$2"
+  local repo_branch="$3"
+  local repo_label="$4"
 
-  if [ ! -e "$REPO_DIR" ]; then
-    printf 'Cloning controller repository into %s\n' "$REPO_DIR"
-    git clone --branch "$REPO_BRANCH" "$REPO_URL" "$REPO_DIR"
+  mkdir -p "$(dirname "$repo_dir")"
+
+  if [ ! -e "$repo_dir" ]; then
+    printf 'Cloning %s repository into %s\n' "$repo_label" "$repo_dir"
+    git clone --branch "$repo_branch" "$repo_url" "$repo_dir"
     return
   fi
 
-  ensure_clean_checkout
+  ensure_clean_checkout "$repo_dir" "$repo_url" "$repo_branch" "$repo_label"
 
-  printf 'Updating controller repository in %s\n' "$REPO_DIR"
-  git -C "$REPO_DIR" fetch origin "$REPO_BRANCH"
-  git -C "$REPO_DIR" merge --ff-only FETCH_HEAD
+  printf 'Updating %s repository in %s\n' "$repo_label" "$repo_dir"
+  git -C "$repo_dir" fetch origin "$repo_branch"
+  git -C "$repo_dir" merge --ff-only FETCH_HEAD
 }
 
-verify_install_targets() {
+remove_checkout_if_clean() {
+  local repo_dir="$1"
+  local repo_label="$2"
+  local repo_status
+
+  [ -e "$repo_dir" ] || return 0
+  [ -d "$repo_dir/.git" ] || die "Managed $repo_label checkout path exists but is not a git repository: $repo_dir"
+
+  repo_status=$(git -C "$repo_dir" status --porcelain)
+  if [ -n "$repo_status" ]; then
+    printf 'Keeping %s checkout with local changes: %s\n' "$repo_label" "$repo_dir"
+    return 0
+  fi
+
+  rm -rf "$repo_dir"
+  printf 'Removed clean %s checkout %s\n' "$repo_label" "$repo_dir"
+}
+
+collect_controller_sources() {
+  shopt -s nullglob
+  CONTROLLER_SOURCES=("$CONTROLLER_REPO_DIR"/*.js "$CONTROLLER_REPO_DIR"/*.xml)
+  shopt -u nullglob
+
+  [ "${#CONTROLLER_SOURCES[@]}" -gt 0 ] || die "No top-level .js or .xml controller files found in $CONTROLLER_REPO_DIR"
+}
+
+verify_controller_targets() {
   local source
   local target
   local link_target
@@ -125,13 +164,14 @@ verify_install_targets() {
   done
 }
 
-install_symlinks() {
+install_controller_symlinks() {
   local source
   local target
   local link_target
   local resolved_target
 
-  verify_install_targets
+  mkdir -p "$CONTROLLERS_DIR"
+  verify_controller_targets
 
   for source in "${CONTROLLER_SOURCES[@]}"; do
     target="$CONTROLLERS_DIR/$(basename "$source")"
@@ -141,7 +181,7 @@ install_symlinks() {
       resolved_target=$(readlink -f "$target" 2>/dev/null || true)
 
       if [ "$link_target" = "$source" ] || [ "$resolved_target" = "$source" ]; then
-        printf 'Keeping existing symlink %s\n' "$target"
+        printf 'Keeping existing controller symlink %s\n' "$target"
         continue
       fi
     fi
@@ -151,7 +191,7 @@ install_symlinks() {
   done
 }
 
-remove_symlinks() {
+remove_controller_symlinks() {
   local path
   local removed=0
 
@@ -159,9 +199,9 @@ remove_symlinks() {
 
   shopt -s nullglob
   for path in "$CONTROLLERS_DIR"/*; do
-    if managed_link_path "$path"; then
+    if managed_link_path "$path" "$CONTROLLER_REPO_DIR"; then
       rm "$path"
-      printf 'Removed symlink %s\n' "$path"
+      printf 'Removed controller symlink %s\n' "$path"
       removed=1
     fi
   done
@@ -172,51 +212,125 @@ remove_symlinks() {
   fi
 }
 
-remove_checkout_if_clean() {
-  local repo_status
+verify_skin_checkout() {
+  [ -f "$SKIN_REPO_DIR/skin.xml" ] || die "Expected skin.xml at the repository root: $SKIN_REPO_DIR"
+}
 
-  [ -e "$REPO_DIR" ] || return 0
-  [ -d "$REPO_DIR/.git" ] || die "Managed checkout path exists but is not a git repository: $REPO_DIR"
+verify_skin_target() {
+  local link_target
+  local resolved_target
 
-  repo_status=$(git -C "$REPO_DIR" status --porcelain)
-  if [ -n "$repo_status" ]; then
-    printf 'Keeping checkout with local changes: %s\n' "$REPO_DIR"
-    return 0
+  if [ -L "$SKIN_TARGET" ]; then
+    link_target=$(readlink "$SKIN_TARGET")
+    resolved_target=$(readlink -f "$SKIN_TARGET" 2>/dev/null || true)
+
+    if [ "$link_target" = "$SKIN_REPO_DIR" ] || [ "$resolved_target" = "$SKIN_REPO_DIR" ]; then
+      return 0
+    fi
+
+    die "Skin target already points elsewhere: $SKIN_TARGET -> $link_target"
   fi
 
-  rm -rf "$REPO_DIR"
-  printf 'Removed clean checkout %s\n' "$REPO_DIR"
+  [ ! -e "$SKIN_TARGET" ] || die "Skin target already exists and is not a managed symlink: $SKIN_TARGET"
 }
 
-install() {
-  clone_or_update_repo
+install_skin_symlink() {
+  mkdir -p "$SKINS_DIR"
+  verify_skin_target
+
+  if [ -L "$SKIN_TARGET" ]; then
+    printf 'Keeping existing skin symlink %s\n' "$SKIN_TARGET"
+    return
+  fi
+
+  ln -s "$SKIN_REPO_DIR" "$SKIN_TARGET"
+  printf 'Linked %s -> %s\n' "$SKIN_TARGET" "$SKIN_REPO_DIR"
+}
+
+remove_skin_symlink() {
+  if managed_link_path "$SKIN_TARGET" "$SKIN_REPO_DIR"; then
+    rm "$SKIN_TARGET"
+    printf 'Removed skin symlink %s\n' "$SKIN_TARGET"
+    return
+  fi
+
+  printf 'No managed skin symlink found at %s\n' "$SKIN_TARGET"
+}
+
+install_controllers() {
+  clone_or_update_repo "$CONTROLLER_REPO_DIR" "$CONTROLLER_REPO_URL" "$CONTROLLER_REPO_BRANCH" "controller"
   collect_controller_sources
-  install_symlinks
+  install_controller_symlinks
 }
 
-remove_installation() {
-  remove_symlinks
-  remove_checkout_if_clean
+remove_controllers() {
+  remove_controller_symlinks
+  remove_checkout_if_clean "$CONTROLLER_REPO_DIR" "controller"
+}
+
+install_skin() {
+  clone_or_update_repo "$SKIN_REPO_DIR" "$SKIN_REPO_URL" "$SKIN_REPO_BRANCH" "skin"
+  verify_skin_checkout
+  install_skin_symlink
+}
+
+remove_skin() {
+  remove_skin_symlink
+  remove_checkout_if_clean "$SKIN_REPO_DIR" "skin"
 }
 
 main() {
+  local remove_mode=0
+  local help_mode=0
+  local do_controllers=0
+  local do_skin=0
+  local target_specified=0
+  local arg
+
   ensure_prerequisites
 
-  case "${1:-}" in
-    "")
-      install
-      ;;
-    --remove)
-      remove_installation
-      ;;
-    --help)
-      usage
-      ;;
-    *)
-      usage >&2
-      exit 1
-      ;;
-  esac
+  for arg in "$@"; do
+    case "$arg" in
+      --controllers)
+        do_controllers=1
+        target_specified=1
+        ;;
+      --skin)
+        do_skin=1
+        target_specified=1
+        ;;
+      --remove)
+        remove_mode=1
+        ;;
+      --help)
+        help_mode=1
+        ;;
+      *)
+        usage >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  if [ "$help_mode" -eq 1 ]; then
+    [ "$#" -eq 1 ] || die "--help cannot be combined with other arguments"
+    usage
+    return
+  fi
+
+  if [ "$target_specified" -eq 0 ]; then
+    do_controllers=1
+    do_skin=1
+  fi
+
+  if [ "$remove_mode" -eq 1 ]; then
+    [ "$do_controllers" -eq 0 ] || remove_controllers
+    [ "$do_skin" -eq 0 ] || remove_skin
+    return
+  fi
+
+  [ "$do_controllers" -eq 0 ] || install_controllers
+  [ "$do_skin" -eq 0 ] || install_skin
 }
 
 main "$@"
