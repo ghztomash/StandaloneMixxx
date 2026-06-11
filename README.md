@@ -137,7 +137,7 @@ systemctl cat lightdm
 
 ## Install Mixxx
 
-The installer can install Mixxx, controller mappings, and the LateNightMini skin in one run.
+The installer can install Mixxx, real-time audio permissions, controller mappings, and the LateNightMini skin in one run.
 By default, it installs vanilla Mixxx from the Raspberry Pi OS package repository.
 
 ```sh
@@ -149,6 +149,12 @@ To install only Mixxx:
 
 ```sh
 ./install.sh --mixxx
+```
+
+To configure only the real-time audio permissions:
+
+```sh
+./install.sh --realtime
 ```
 
 To install the custom Mixxx build with additional Rekordbox-oriented features instead:
@@ -166,7 +172,9 @@ MIXXX_CUSTOM_RELEASE_API_URL=https://api.github.com/repos/ghztomash/mixxx/releas
 
 ### Real-Time threads
 
-Mixxx expects real-time audio threads to reduce latency.
+Mixxx expects real-time audio threads to reduce latency. The installer configures these settings automatically during a full install, or when run with `./install.sh --realtime`.
+
+If you need to configure them manually:
 
 ```sh
 sudo usermod -aG audio "$USER"
@@ -181,7 +189,7 @@ And add to `95-audio.conf`
 @audio - nice -19
 ```
 
-Check the changes
+Check the changes after logging out and back in, or after rebooting. A shell that was already open before the change may still show the old values.
 
 ```sh
 sudo reboot

@@ -12,6 +12,9 @@ MIXXX_QT_SVG_PACKAGE_CANDIDATES="${MIXXX_QT_SVG_PACKAGE_CANDIDATES:-qt6-svg-plug
 MIXXX_CUSTOM_RELEASE_API_URL="${MIXXX_CUSTOM_RELEASE_API_URL:-https://api.github.com/repos/ghztomash/mixxx/releases/latest}"
 MIXXX_CUSTOM_ASSET_GLOB="${MIXXX_CUSTOM_ASSET_GLOB:-}"
 MIXXX_DOWNLOAD_DIR="${MIXXX_DOWNLOAD_DIR:-$HOME/.cache/standalone-mixxx}"
+MIXXX_REALTIME_GROUP="${MIXXX_REALTIME_GROUP:-audio}"
+MIXXX_REALTIME_LIMITS_FILE="${MIXXX_REALTIME_LIMITS_FILE:-/etc/security/limits.d/95-audio.conf}"
+MIXXX_REALTIME_LIMITS_CONF="${MIXXX_REALTIME_LIMITS_CONF:-/etc/security/limits.conf}"
 
 SKIN_NAME="${SKIN_NAME:-LateNightMini}"
 SKIN_REPO_URL="${SKIN_REPO_URL:-https://github.com/ghztomash/LateNightMini.git}"
@@ -24,22 +27,23 @@ declare -a CONTROLLER_SOURCES=()
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--mixxx] [--controllers] [--skin] [--custom|--vanilla] [--remove] [--help]
+Usage: $(basename "$0") [--mixxx] [--realtime] [--controllers] [--skin] [--custom|--vanilla] [--remove] [--help]
 
 Install or update Mixxx, the managed FLX-Mixxx controller mapping checkout,
 and the LateNightMini skin checkout under ~/.local/share/standalone-mixxx.
 
-By default, installs all components. Use --mixxx, --controllers, or --skin
+By default, installs all components. Use --mixxx, --realtime, --controllers, or --skin
 to limit the action to one component.
 
 Options:
   --mixxx       Operate only on Mixxx.
+  --realtime    Operate only on real-time audio permissions.
   --controllers  Operate only on controller mappings.
   --skin         Operate only on the LateNightMini skin.
   --custom       Install the custom GitHub release Mixxx .deb.
   --vanilla      Install vanilla Mixxx from apt. Default.
-  --remove       Remove managed symlinks and delete clean managed checkouts.
-                 Mixxx package removal is intentionally unmanaged.
+  --remove       Remove selected managed symlinks and delete clean managed checkouts.
+                 Mixxx package and real-time config removal are intentionally unmanaged.
   --help         Show this help text.
 EOF
 }
@@ -69,17 +73,21 @@ require_sudo_if_needed() {
 
 ensure_prerequisites() {
   local need_mixxx="$1"
-  local need_controllers="$2"
-  local need_skin="$3"
+  local need_realtime="$2"
+  local need_controllers="$3"
+  local need_skin="$4"
 
   if [ "$need_controllers" -eq 1 ] || [ "$need_skin" -eq 1 ]; then
     require_command git
     require_command readlink
   fi
 
+  if [ "$need_mixxx" -eq 1 ] || [ "$need_realtime" -eq 1 ]; then
+    require_sudo_if_needed
+  fi
+
   if [ "$need_mixxx" -eq 1 ]; then
     require_command apt-get
-    require_sudo_if_needed
 
     if [ "$MIXXX_SOURCE" = "custom" ]; then
       require_command curl
@@ -87,6 +95,13 @@ ensure_prerequisites() {
       require_command sha256sum
       require_command uname
     fi
+  fi
+
+  if [ "$need_realtime" -eq 1 ]; then
+    require_command getent
+    require_command id
+    require_command mkdir
+    require_command tee
   fi
 }
 
@@ -255,6 +270,123 @@ install_apt_packages() {
 
   printf 'Installing apt packages: %s\n' "${packages[*]}"
   run_as_root apt-get install -y "${packages[@]}"
+}
+
+target_realtime_user() {
+  if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+    printf '%s\n' "$SUDO_USER"
+    return
+  fi
+
+  id -un
+}
+
+user_in_group() {
+  local user="$1"
+  local group="$2"
+  local user_group
+
+  for user_group in $(id -nG "$user"); do
+    [ "$user_group" != "$group" ] || return 0
+  done
+
+  return 1
+}
+
+ensure_realtime_group_membership() {
+  local user="$1"
+  local group="$MIXXX_REALTIME_GROUP"
+
+  getent group "$group" >/dev/null || die "Required real-time audio group does not exist: $group"
+  id "$user" >/dev/null 2>&1 || die "Target real-time audio user does not exist: $user"
+
+  if user_in_group "$user" "$group"; then
+    printf 'Keeping %s in %s group\n' "$user" "$group"
+    return 0
+  fi
+
+  printf 'Adding %s to %s group\n' "$user" "$group"
+  run_as_root usermod -aG "$group" "$user"
+  return 0
+}
+
+realtime_limit_exists() {
+  local item="$1"
+  local value="$2"
+  local group="$MIXXX_REALTIME_GROUP"
+  local limits_dir="${MIXXX_REALTIME_LIMITS_FILE%/*}"
+  local file
+  local line
+  local parsed_line
+  local domain
+  local limit_type
+  local parsed_item
+  local parsed_value
+  local rest
+  local -a limit_files=()
+
+  [ "$limits_dir" != "$MIXXX_REALTIME_LIMITS_FILE" ] || limits_dir="."
+
+  [ ! -f "$MIXXX_REALTIME_LIMITS_CONF" ] || limit_files+=("$MIXXX_REALTIME_LIMITS_CONF")
+
+  shopt -s nullglob
+  for file in "$limits_dir"/*.conf; do
+    limit_files+=("$file")
+  done
+  shopt -u nullglob
+
+  for file in "${limit_files[@]}"; do
+    [ -r "$file" ] || continue
+
+    while IFS= read -r line || [ -n "$line" ]; do
+      parsed_line="${line%%#*}"
+      if read -r domain limit_type parsed_item parsed_value rest <<< "$parsed_line"; then
+        if [ "$domain" = "@$group" ] &&
+          [ "$limit_type" = "-" ] &&
+          [ "$parsed_item" = "$item" ] &&
+          [ "$parsed_value" = "$value" ]; then
+          return 0
+        fi
+      fi
+    done < "$file"
+  done
+
+  return 1
+}
+
+append_realtime_limit() {
+  local line="$1"
+  local limits_dir="${MIXXX_REALTIME_LIMITS_FILE%/*}"
+
+  [ "$limits_dir" != "$MIXXX_REALTIME_LIMITS_FILE" ] || limits_dir="."
+
+  run_as_root mkdir -p "$limits_dir"
+  printf '%s\n' "$line" | run_as_root tee -a "$MIXXX_REALTIME_LIMITS_FILE" >/dev/null
+  printf 'Added real-time limit: %s\n' "$line"
+}
+
+ensure_realtime_limits() {
+  local group="$MIXXX_REALTIME_GROUP"
+  local changed=0
+
+  if ! realtime_limit_exists rtprio 95; then
+    append_realtime_limit "@$group - rtprio 95"
+    changed=1
+  fi
+
+  if ! realtime_limit_exists memlock unlimited; then
+    append_realtime_limit "@$group - memlock unlimited"
+    changed=1
+  fi
+
+  if ! realtime_limit_exists nice -19; then
+    append_realtime_limit "@$group - nice -19"
+    changed=1
+  fi
+
+  if [ "$changed" -eq 0 ]; then
+    printf 'Keeping existing real-time limits for @%s\n' "$group"
+  fi
 }
 
 detect_mixxx_package_architecture() {
@@ -537,9 +669,25 @@ install_mixxx() {
   esac
 }
 
+install_realtime() {
+  local target_user
+
+  print_section "Configuring real-time audio permissions"
+
+  target_user=$(target_realtime_user)
+  ensure_realtime_group_membership "$target_user"
+  ensure_realtime_limits
+  printf 'Log out and back in, or reboot, before checking groups, ulimit -r, or ulimit -l.\n'
+}
+
 remove_mixxx() {
   print_section "Removing Mixxx"
   printf 'Mixxx package removal is intentionally unmanaged. Remove it with apt if needed.\n'
+}
+
+remove_realtime() {
+  print_section "Removing real-time audio permissions"
+  printf 'Real-time audio permission removal is intentionally unmanaged. Edit group membership and limits files manually if needed.\n'
 }
 
 install_controllers() {
@@ -572,6 +720,7 @@ main() {
   local remove_mode=0
   local help_mode=0
   local do_mixxx=0
+  local do_realtime=0
   local do_controllers=0
   local do_skin=0
   local target_specified=0
@@ -583,6 +732,10 @@ main() {
     case "$arg" in
       --mixxx)
         do_mixxx=1
+        target_specified=1
+        ;;
+      --realtime)
+        do_realtime=1
         target_specified=1
         ;;
       --controllers)
@@ -627,25 +780,28 @@ main() {
       do_skin=1
     else
       do_mixxx=1
+      do_realtime=1
       do_controllers=1
       do_skin=1
     fi
   fi
 
   if [ "$remove_mode" -eq 1 ]; then
-    ensure_prerequisites 0 "$do_controllers" "$do_skin"
+    ensure_prerequisites 0 0 "$do_controllers" "$do_skin"
   else
-    ensure_prerequisites "$do_mixxx" "$do_controllers" "$do_skin"
+    ensure_prerequisites "$do_mixxx" "$do_realtime" "$do_controllers" "$do_skin"
   fi
 
   if [ "$remove_mode" -eq 1 ]; then
     [ "$do_mixxx" -eq 0 ] || remove_mixxx
+    [ "$do_realtime" -eq 0 ] || remove_realtime
     [ "$do_controllers" -eq 0 ] || remove_controllers
     [ "$do_skin" -eq 0 ] || remove_skin
     return
   fi
 
   [ "$do_mixxx" -eq 0 ] || install_mixxx
+  [ "$do_realtime" -eq 0 ] || install_realtime
   [ "$do_controllers" -eq 0 ] || install_controllers
   [ "$do_skin" -eq 0 ] || install_skin
 }
