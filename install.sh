@@ -6,6 +6,13 @@ CONTROLLER_REPO_BRANCH="${CONTROLLER_REPO_BRANCH:-${REPO_BRANCH:-main}}"
 CONTROLLER_REPO_DIR="${CONTROLLER_REPO_DIR:-${REPO_DIR:-$HOME/.local/share/standalone-mixxx/FLX-Mixxx}}"
 CONTROLLERS_DIR="${CONTROLLERS_DIR:-$HOME/.mixxx/controllers}"
 
+MIXXX_SOURCE="${MIXXX_SOURCE:-vanilla}"
+MIXXX_APT_PACKAGES="${MIXXX_APT_PACKAGES:-mixxx}"
+MIXXX_QT_SVG_PACKAGE_CANDIDATES="${MIXXX_QT_SVG_PACKAGE_CANDIDATES:-qt6-svg-plugins libqt6svg6 libqt6svgwidgets6}"
+MIXXX_CUSTOM_RELEASE_API_URL="${MIXXX_CUSTOM_RELEASE_API_URL:-https://api.github.com/repos/ghztomash/mixxx/releases/latest}"
+MIXXX_CUSTOM_ASSET_GLOB="${MIXXX_CUSTOM_ASSET_GLOB:-}"
+MIXXX_DOWNLOAD_DIR="${MIXXX_DOWNLOAD_DIR:-$HOME/.cache/standalone-mixxx}"
+
 SKIN_NAME="${SKIN_NAME:-LateNightMini}"
 SKIN_REPO_URL="${SKIN_REPO_URL:-https://github.com/ghztomash/LateNightMini.git}"
 SKIN_REPO_BRANCH="${SKIN_REPO_BRANCH:-main}"
@@ -17,18 +24,22 @@ declare -a CONTROLLER_SOURCES=()
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--controllers] [--skin] [--remove] [--help]
+Usage: $(basename "$0") [--mixxx] [--controllers] [--skin] [--custom|--vanilla] [--remove] [--help]
 
-Install or update the managed FLX-Mixxx controller mapping checkout and the
-LateNightMini skin checkout under ~/.local/share/standalone-mixxx.
+Install or update Mixxx, the managed FLX-Mixxx controller mapping checkout,
+and the LateNightMini skin checkout under ~/.local/share/standalone-mixxx.
 
-By default, installs or removes both components. Use --controllers or --skin
+By default, installs all components. Use --mixxx, --controllers, or --skin
 to limit the action to one component.
 
 Options:
+  --mixxx       Operate only on Mixxx.
   --controllers  Operate only on controller mappings.
   --skin         Operate only on the LateNightMini skin.
+  --custom       Install the custom GitHub release Mixxx .deb.
+  --vanilla      Install vanilla Mixxx from apt. Default.
   --remove       Remove managed symlinks and delete clean managed checkouts.
+                 Mixxx package removal is intentionally unmanaged.
   --help         Show this help text.
 EOF
 }
@@ -50,9 +61,41 @@ require_command() {
   command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: $cmd"
 }
 
+require_sudo_if_needed() {
+  if [ "${EUID:-$(id -u)}" -ne 0 ]; then
+    require_command sudo
+  fi
+}
+
 ensure_prerequisites() {
-  require_command git
-  require_command readlink
+  local need_mixxx="$1"
+  local need_controllers="$2"
+  local need_skin="$3"
+
+  if [ "$need_controllers" -eq 1 ] || [ "$need_skin" -eq 1 ]; then
+    require_command git
+    require_command readlink
+  fi
+
+  if [ "$need_mixxx" -eq 1 ]; then
+    require_command apt-get
+    require_sudo_if_needed
+
+    if [ "$MIXXX_SOURCE" = "custom" ]; then
+      require_command curl
+      require_command python3
+      require_command sha256sum
+      require_command uname
+    fi
+  fi
+}
+
+run_as_root() {
+  if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
 }
 
 managed_link_path() {
@@ -178,6 +221,180 @@ remove_checkout_if_clean() {
 
   rm -rf "$repo_dir"
   printf 'Removed clean %s checkout %s\n' "$repo_label" "$repo_dir"
+}
+
+validate_mixxx_source() {
+  case "$MIXXX_SOURCE" in
+    custom|vanilla) ;;
+    *) die "Invalid Mixxx source: $MIXXX_SOURCE. Expected custom or vanilla." ;;
+  esac
+}
+
+resolve_available_packages() {
+  local package
+  local resolved=()
+
+  for package in "$@"; do
+    if apt-cache show "$package" >/dev/null 2>&1; then
+      resolved+=("$package")
+    fi
+  done
+
+  printf '%s\n' "${resolved[@]}"
+}
+
+resolve_qt_svg_packages() {
+  # shellcheck disable=SC2086
+  resolve_available_packages $MIXXX_QT_SVG_PACKAGE_CANDIDATES
+}
+
+install_apt_packages() {
+  local -a packages=("$@")
+
+  [ "${#packages[@]}" -gt 0 ] || return 0
+
+  printf 'Installing apt packages: %s\n' "${packages[*]}"
+  run_as_root apt-get install -y "${packages[@]}"
+}
+
+detect_mixxx_package_architecture() {
+  local machine
+
+  machine=$(uname -m)
+
+  case "$machine" in
+    aarch64|arm64)
+      printf 'aarch64\n'
+      ;;
+    x86_64|amd64)
+      printf 'x86_64\n'
+      ;;
+    *)
+      die "Unsupported Mixxx custom package architecture: $machine. Supported: aarch64, x86_64."
+      ;;
+  esac
+}
+
+custom_mixxx_asset_glob() {
+  local package_architecture
+
+  if [ -n "$MIXXX_CUSTOM_ASSET_GLOB" ]; then
+    printf '%s\n' "$MIXXX_CUSTOM_ASSET_GLOB"
+    return
+  fi
+
+  package_architecture=$(detect_mixxx_package_architecture)
+  printf '*-%s.deb\n' "$package_architecture"
+}
+
+select_custom_mixxx_asset() {
+  local release_json="$1"
+  local asset_glob="$2"
+
+  python3 - "$release_json" "$asset_glob" <<'PY'
+import fnmatch
+import json
+import sys
+
+release_path, pattern = sys.argv[1], sys.argv[2]
+
+with open(release_path, "r", encoding="utf-8") as release_file:
+    release = json.load(release_file)
+
+assets = release.get("assets", [])
+matches = [
+    asset
+    for asset in assets
+    if fnmatch.fnmatch(asset.get("name", ""), pattern)
+]
+
+if len(matches) != 1:
+    names = ", ".join(asset.get("name", "<unnamed>") for asset in assets) or "<none>"
+    print(
+        f"Expected exactly one release asset matching {pattern!r}, found {len(matches)}. "
+        f"Available assets: {names}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+asset = matches[0]
+download_url = asset.get("browser_download_url")
+if not download_url:
+    print(f"Matched asset {asset.get('name', '<unnamed>')} has no browser_download_url", file=sys.stderr)
+    sys.exit(1)
+
+print(download_url)
+print(asset.get("name", "mixxx-custom.deb"))
+print(asset.get("digest", ""))
+PY
+}
+
+download_custom_mixxx_deb() {
+  local release_json
+  local asset_info
+  local asset_url
+  local asset_name
+  local asset_digest
+  local deb_path
+  local checksum
+  local asset_glob
+  local -a asset_lines
+
+  mkdir -p "$MIXXX_DOWNLOAD_DIR"
+  release_json=$(mktemp "$MIXXX_DOWNLOAD_DIR/mixxx-release.XXXXXX.json")
+
+  printf 'Fetching latest Mixxx release metadata from %s\n' "$MIXXX_CUSTOM_RELEASE_API_URL" >&2
+  curl -fsSL "$MIXXX_CUSTOM_RELEASE_API_URL" -o "$release_json"
+
+  asset_glob=$(custom_mixxx_asset_glob)
+  printf 'Selecting custom Mixxx release asset matching %s\n' "$asset_glob" >&2
+  asset_info=$(select_custom_mixxx_asset "$release_json" "$asset_glob") || die "Could not select a unique custom Mixxx .deb asset matching $asset_glob"
+  mapfile -t asset_lines <<< "$asset_info"
+  asset_url="${asset_lines[0]}"
+  asset_name="${asset_lines[1]}"
+  asset_name="${asset_name##*/}"
+  asset_digest="${asset_lines[2]:-}"
+  deb_path="$MIXXX_DOWNLOAD_DIR/$asset_name"
+  rm -f "$release_json"
+
+  printf 'Downloading custom Mixxx package %s\n' "$asset_name" >&2
+  curl -fsSL "$asset_url" -o "$deb_path"
+
+  case "$asset_digest" in
+    sha256:*)
+      checksum="${asset_digest#sha256:}"
+      printf 'Verifying SHA256 digest for %s\n' "$asset_name" >&2
+      printf '%s  %s\n' "$checksum" "$deb_path" | sha256sum -c - >&2
+      ;;
+    "")
+      printf 'No SHA256 digest found in release metadata for %s\n' "$asset_name" >&2
+      ;;
+    *)
+      printf 'Skipping unsupported release asset digest format for %s: %s\n' "$asset_name" "$asset_digest" >&2
+      ;;
+  esac
+
+  printf '%s\n' "$deb_path"
+}
+
+install_mixxx_vanilla() {
+  local -a qt_svg_packages
+
+  run_as_root apt-get update
+  mapfile -t qt_svg_packages < <(resolve_qt_svg_packages)
+  # shellcheck disable=SC2086
+  install_apt_packages $MIXXX_APT_PACKAGES "${qt_svg_packages[@]}"
+}
+
+install_mixxx_custom() {
+  local deb_path
+  local -a qt_svg_packages
+
+  deb_path=$(download_custom_mixxx_deb)
+  printf 'Installing custom Mixxx package %s\n' "$deb_path"
+  run_as_root apt-get update
+  mapfile -t qt_svg_packages < <(resolve_qt_svg_packages)
+  install_apt_packages "$deb_path" "${qt_svg_packages[@]}"
 }
 
 collect_controller_sources() {
@@ -307,6 +524,24 @@ remove_skin_symlink() {
   printf 'No managed skin symlink found at %s\n' "$SKIN_TARGET"
 }
 
+install_mixxx() {
+  print_section "Installing Mixxx ($MIXXX_SOURCE)"
+
+  case "$MIXXX_SOURCE" in
+    custom)
+      install_mixxx_custom
+      ;;
+    vanilla)
+      install_mixxx_vanilla
+      ;;
+  esac
+}
+
+remove_mixxx() {
+  print_section "Removing Mixxx"
+  printf 'Mixxx package removal is intentionally unmanaged. Remove it with apt if needed.\n'
+}
+
 install_controllers() {
   print_section "Installing controller mappings"
   clone_or_update_repo "$CONTROLLER_REPO_DIR" "$CONTROLLER_REPO_URL" "$CONTROLLER_REPO_BRANCH" "controller"
@@ -336,15 +571,20 @@ remove_skin() {
 main() {
   local remove_mode=0
   local help_mode=0
+  local do_mixxx=0
   local do_controllers=0
   local do_skin=0
   local target_specified=0
+  local original_arg_count="$#"
   local arg
 
-  ensure_prerequisites
-
-  for arg in "$@"; do
+  while [ "$#" -gt 0 ]; do
+    arg="$1"
     case "$arg" in
+      --mixxx)
+        do_mixxx=1
+        target_specified=1
+        ;;
       --controllers)
         do_controllers=1
         target_specified=1
@@ -352,6 +592,12 @@ main() {
       --skin)
         do_skin=1
         target_specified=1
+        ;;
+      --custom)
+        MIXXX_SOURCE="custom"
+        ;;
+      --vanilla)
+        MIXXX_SOURCE="vanilla"
         ;;
       --remove)
         remove_mode=1
@@ -364,25 +610,42 @@ main() {
         exit 1
         ;;
     esac
+    shift
   done
 
   if [ "$help_mode" -eq 1 ]; then
-    [ "$#" -eq 1 ] || die "--help cannot be combined with other arguments"
+    [ "$original_arg_count" -eq 1 ] || die "--help cannot be combined with other arguments"
     usage
     return
   fi
 
+  validate_mixxx_source
+
   if [ "$target_specified" -eq 0 ]; then
-    do_controllers=1
-    do_skin=1
+    if [ "$remove_mode" -eq 1 ]; then
+      do_controllers=1
+      do_skin=1
+    else
+      do_mixxx=1
+      do_controllers=1
+      do_skin=1
+    fi
   fi
 
   if [ "$remove_mode" -eq 1 ]; then
+    ensure_prerequisites 0 "$do_controllers" "$do_skin"
+  else
+    ensure_prerequisites "$do_mixxx" "$do_controllers" "$do_skin"
+  fi
+
+  if [ "$remove_mode" -eq 1 ]; then
+    [ "$do_mixxx" -eq 0 ] || remove_mixxx
     [ "$do_controllers" -eq 0 ] || remove_controllers
     [ "$do_skin" -eq 0 ] || remove_skin
     return
   fi
 
+  [ "$do_mixxx" -eq 0 ] || install_mixxx
   [ "$do_controllers" -eq 0 ] || install_controllers
   [ "$do_skin" -eq 0 ] || install_skin
 }

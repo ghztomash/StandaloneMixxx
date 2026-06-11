@@ -137,15 +137,31 @@ systemctl cat lightdm
 
 ## Install Mixxx
 
-The easiest path is to install vanilla Mixxx.
-
-But if you want additional features that match the expected Rekordbox user experience, you might need to build Mixxx from scratch with my changes applied.
+The installer can install Mixxx, controller mappings, and the LateNightMini skin in one run.
+By default, it installs vanilla Mixxx from the Raspberry Pi OS package repository.
 
 ```sh
-sudo apt install mixxx
+chmod +x install.sh
+./install.sh
+```
 
-# If some icons are missing from the Mixxx UI
-sudo apt install qt6-svg-plugins
+To install only Mixxx:
+
+```sh
+./install.sh --mixxx
+```
+
+To install the custom Mixxx build with additional Rekordbox-oriented features instead:
+
+```sh
+./install.sh --mixxx --custom
+```
+
+The custom Mixxx installer downloads the latest full GitHub release `.deb` from my fork and installs it with apt. It selects an `aarch64` or `x86_64` asset for the current system. If you want to pin a specific build, set `MIXXX_CUSTOM_RELEASE_API_URL`, set `MIXXX_CUSTOM_ASSET_GLOB`, or install the `.deb` manually.
+The installer also installs whichever Qt SVG runtime package names are available on the local apt repository, such as `qt6-svg-plugins` or `libqt6svg6` plus `libqt6svgwidgets6`.
+
+```sh
+MIXXX_CUSTOM_RELEASE_API_URL=https://api.github.com/repos/ghztomash/mixxx/releases/latest ./install.sh --mixxx --custom
 ```
 
 ### Real-Time threads
@@ -248,7 +264,7 @@ But if you want the user experience that follows more closely the Rekordbox work
 
 The installer keeps a managed checkout in `~/.local/share/standalone-mixxx/FLX-Mixxx`, updates it on rerun, and symlinks the top-level controller `.js` and `.xml` files into `~/.mixxx/controllers`.
 
-Run `./install.sh` with no target flag to install or update both the skin and controller scripts in one step.
+Run `./install.sh` with no target flag to install or update Mixxx, the skin, and controller scripts in one step.
 
 To uninstall the managed symlinks later:
 
@@ -297,7 +313,7 @@ tail -f ~/.mixxx/mixxx_launcher.log
 - Controller not detected: run `aplay -l` and adjust `DEVICE_NAME` in `~/mixxx-launcher.sh`.
 - Mixxx does not start on login: check that `~/.config/autostart/mixxx.desktop` exists and `~/mixxx-launcher.sh` is executable.
 - Audio latency is too high: confirm the user is in the `audio` group with `groups`, then check `ulimit -r` and `ulimit -l`.
-- Missing Mixxx icons: install `qt6-svg-plugins`.
+- Missing Mixxx icons: install the Qt SVG runtime package for your OS, such as `qt6-svg-plugins` or `libqt6svg6` plus `libqt6svgwidgets6`.
 
 ## Acknowledgments
 
