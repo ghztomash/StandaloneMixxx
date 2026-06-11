@@ -38,6 +38,12 @@ die() {
   exit 1
 }
 
+print_section() {
+  local title="$1"
+
+  printf '\n==> %s\n' "$title"
+}
+
 require_command() {
   local cmd="$1"
 
@@ -302,23 +308,27 @@ remove_skin_symlink() {
 }
 
 install_controllers() {
+  print_section "Installing controller mappings"
   clone_or_update_repo "$CONTROLLER_REPO_DIR" "$CONTROLLER_REPO_URL" "$CONTROLLER_REPO_BRANCH" "controller"
   collect_controller_sources
   install_controller_symlinks
 }
 
 remove_controllers() {
+  print_section "Removing controller mappings"
   remove_controller_symlinks
   remove_checkout_if_clean "$CONTROLLER_REPO_DIR" "controller"
 }
 
 install_skin() {
+  print_section "Installing $SKIN_NAME skin"
   clone_or_update_repo "$SKIN_REPO_DIR" "$SKIN_REPO_URL" "$SKIN_REPO_BRANCH" "skin"
   verify_skin_checkout
   install_skin_symlink
 }
 
 remove_skin() {
+  print_section "Removing $SKIN_NAME skin"
   remove_skin_symlink
   remove_checkout_if_clean "$SKIN_REPO_DIR" "skin"
 }
