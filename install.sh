@@ -70,6 +70,50 @@ managed_link_path() {
   return 1
 }
 
+canonical_github_repo() {
+  local url="$1"
+  local repo_path
+
+  case "$url" in
+    https://github.com/*)
+      repo_path="${url#https://github.com/}"
+      ;;
+    git@github.com:*)
+      repo_path="${url#git@github.com:}"
+      ;;
+    ssh://git@github.com/*)
+      repo_path="${url#ssh://git@github.com/}"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  repo_path="${repo_path%/}"
+  repo_path="${repo_path%.git}"
+
+  case "$repo_path" in
+    */*) ;;
+    *) return 1 ;;
+  esac
+
+  printf 'github.com/%s\n' "${repo_path,,}"
+}
+
+repo_urls_match() {
+  local expected_url="$1"
+  local actual_url="$2"
+  local expected_repo
+  local actual_repo
+
+  [ "$expected_url" = "$actual_url" ] && return 0
+
+  expected_repo=$(canonical_github_repo "$expected_url" 2>/dev/null || true)
+  actual_repo=$(canonical_github_repo "$actual_url" 2>/dev/null || true)
+
+  [ -n "$expected_repo" ] && [ "$expected_repo" = "$actual_repo" ]
+}
+
 ensure_clean_checkout() {
   local repo_dir="$1"
   local repo_url="$2"
@@ -82,7 +126,7 @@ ensure_clean_checkout() {
   [ -d "$repo_dir/.git" ] || die "Existing $repo_label path is not a git repository: $repo_dir"
 
   origin_url=$(git -C "$repo_dir" config --get remote.origin.url || true)
-  [ "$origin_url" = "$repo_url" ] || die "Existing $repo_label repository origin mismatch at $repo_dir. Expected $repo_url but found ${origin_url:-<none>}"
+  repo_urls_match "$repo_url" "$origin_url" || die "Existing $repo_label repository origin mismatch at $repo_dir. Expected $repo_url or an equivalent GitHub HTTPS/SSH URL but found ${origin_url:-<none>}"
 
   current_branch=$(git -C "$repo_dir" rev-parse --abbrev-ref HEAD)
   [ "$current_branch" = "$repo_branch" ] || die "Existing $repo_label repository must be on branch $repo_branch, found $current_branch at $repo_dir"
