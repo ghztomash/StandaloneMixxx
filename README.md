@@ -37,30 +37,42 @@ You may choose to go with Raspberry Pi OS Lite and then install only the necessa
 
 In the future I might look into providing ready-built and configured images.
 
-### Configure the OS
+### Provision Raspberry Pi OS
 
-After the fresh installation, update and configure your operating system:
+After the fresh installation, run the provisioning script to update Raspberry Pi OS, remove unnecessary desktop packages, disable slow or unused services, clean apt state, and print tuning diagnostics.
+
+Preview the changes first:
 
 ```sh
-sudo apt update
-
-# Remove any unwanted software
-sudo apt remove -y rpi-connect cloud-init chromium cups geany thonny agnostics rpi-imager piclone rp-bookshelf rp-prefapps rpi-userguide rpinters
-
-# Update the remaining software
-sudo apt full-upgrade -y
-
-# Clean up
-sudo apt autoremove -y
-sudo apt autoclean -y
-
-# Do your preference configuration
-sudo raspi-config
-sudo vim /boot/firmware/config.txt
-
-# Kernel options
-sudo vim /boot/firmware/cmdline.txt
+chmod +x provision.sh
+./provision.sh --dry-run
 ```
+
+Then apply them:
+
+```sh
+./provision.sh
+```
+
+The default provisioning run is intentionally aggressive for a dedicated Mixxx appliance. It does not edit display overlays, boot cmdline, USB tuning, or real-time audio limits. Those areas are reported for review only.
+Real runs are guarded to Raspberry Pi OS; set `PROVISION_ALLOW_UNSUPPORTED_OS=1` only if you intentionally use another Debian-based Pi image.
+
+To run only part of the provisioning flow:
+
+```sh
+./provision.sh --updates
+./provision.sh --packages
+./provision.sh --services
+./provision.sh --report
+```
+
+Reboot after package and service cleanup:
+
+```sh
+sudo reboot
+```
+
+Run `sudo raspi-config` for your own device-specific preferences.
 
 ### Desktop configuration
 
@@ -68,26 +80,18 @@ You can further customize the system to your liking, such as disabling media pop
 
 ### Services
 
-**Optional** - disable unwanted services that slow down boot:
+The provisioning script disables and masks known optional services that slow down boot or are not needed for a dedicated Mixxx appliance.
+
+For manual inspection:
 
 ```sh
 # Analyze the source of slowdowns
 systemd-analyze blame
 systemd-analyze critical-chain
-
-# Disable any unwanted services
-sudo systemctl disable NetworkManager-wait-online.service
-sudo systemctl mask NetworkManager-wait-online.service
-
-sudo systemctl disable ModemManager
-sudo systemctl mask ModemManager
-
-sudo systemctl disable bluetooth
-sudo systemctl mask bluetooth
 ```
 
 This step is probably not necessary if you start with a Lite OS.
-And is for more advanced users, as you may break your system by removing the wrong service.
+Be careful with additional service changes, as you may break networking, display login, or controller discovery by disabling the wrong unit.
 
 ## Display
 
