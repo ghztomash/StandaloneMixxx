@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROVISION_PACKAGE_CANDIDATES="${PROVISION_PACKAGE_CANDIDATES:-rpi-connect cloud-init chromium chromium-browser cups cups-browsed system-config-printer geany thonny agnostics rpi-imager piclone rp-bookshelf rp-prefapps rpi-userguide rpinters libreoffice-base libreoffice-base-core libreoffice-calc libreoffice-common libreoffice-core libreoffice-draw libreoffice-gtk3 libreoffice-help-common libreoffice-help-en-us libreoffice-impress libreoffice-math libreoffice-style-colibre libreoffice-writer}"
-PROVISION_SERVICE_CANDIDATES="${PROVISION_SERVICE_CANDIDATES:-NetworkManager-wait-online.service ModemManager.service bluetooth.service cups.service cups-browsed.service rpi-connect.service cloud-config.service cloud-final.service cloud-init.service cloud-init-local.service}"
+PROVISION_SERVICE_CANDIDATES="${PROVISION_SERVICE_CANDIDATES:-NetworkManager-wait-online.service ModemManager.service cups.service cups-browsed.service rpi-connect.service cloud-config.service cloud-final.service cloud-init.service cloud-init-local.service}"
 PROVISION_TIMER_CANDIDATES="${PROVISION_TIMER_CANDIDATES:-apt-daily.timer apt-daily-upgrade.timer}"
 PROVISION_BOOT_BLAME_LINES="${PROVISION_BOOT_BLAME_LINES:-20}"
 PROVISION_ALLOW_UNSUPPORTED_OS="${PROVISION_ALLOW_UNSUPPORTED_OS:-0}"
@@ -284,32 +284,32 @@ main() {
   while [ "$#" -gt 0 ]; do
     arg="$1"
     case "$arg" in
-      --updates)
-        do_updates=1
-        target_specified=1
-        ;;
-      --packages)
-        do_packages=1
-        target_specified=1
-        ;;
-      --services)
-        do_services=1
-        target_specified=1
-        ;;
-      --report)
-        do_report=1
-        target_specified=1
-        ;;
-      --dry-run)
-        DRY_RUN=1
-        ;;
-      --help)
-        help_mode=1
-        ;;
-      *)
-        usage >&2
-        exit 1
-        ;;
+    --updates)
+      do_updates=1
+      target_specified=1
+      ;;
+    --packages)
+      do_packages=1
+      target_specified=1
+      ;;
+    --services)
+      do_services=1
+      target_specified=1
+      ;;
+    --report)
+      do_report=1
+      target_specified=1
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      ;;
+    --help)
+      help_mode=1
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
     esac
     shift
   done
