@@ -310,7 +310,7 @@ cp autostart/mixxx.desktop ~/.config/autostart/mixxx.desktop
 
 Connect and check your controller with `aplay -l`
 
-Edit `~/mixxx-launcher.sh` and update `DEVICE_NAME="DDJFLX4"` to match your controller. If your Raspberry Pi username is not `pi`, also update the `/home/pi/...` paths in `~/mixxx-launcher.sh` and `~/.config/autostart/mixxx.desktop`.
+Edit `~/mixxx-launcher.sh` and update `DEVICE_NAME="DDJFLX"` to match your controller. If your Raspberry Pi username is not `pi`, also update the `/home/pi/...` paths in `~/mixxx-launcher.sh` and `~/.config/autostart/mixxx.desktop`.
 
 Verify the launcher:
 
