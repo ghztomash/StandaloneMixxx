@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROVISION_PACKAGE_CANDIDATES="${PROVISION_PACKAGE_CANDIDATES:-rpi-connect cloud-init chromium chromium-browser cups cups-browsed system-config-printer geany thonny agnostics rpi-imager piclone rp-bookshelf rp-prefapps rpi-userguide rpinters libreoffice-base libreoffice-base-core libreoffice-calc libreoffice-common libreoffice-core libreoffice-draw libreoffice-gtk3 libreoffice-help-common libreoffice-help-en-us libreoffice-impress libreoffice-math libreoffice-style-colibre libreoffice-writer}"
+PROVISION_PACKAGE_CANDIDATES="${PROVISION_PACKAGE_CANDIDATES:-rpi-connect cloud-init chromium chromium-browser cups cups-browsed system-config-printer geany thonny agnostics rpi-imager piclone rp-bookshelf rp-prefapps rpi-userguide rpinters libreoffice-base libreoffice-base-core libreoffice-calc libreoffice-common libreoffice-core libreoffice-draw libreoffice-gtk3 libreoffice-help-common libreoffice-help-en-us libreoffice-impress libreoffice-math libreoffice-style-colibre libreoffice-writer evince realvnc-vnc-server}"
 PROVISION_SERVICE_CANDIDATES="${PROVISION_SERVICE_CANDIDATES:-NetworkManager-wait-online.service ModemManager.service cups.service cups-browsed.service rpi-connect.service cloud-config.service cloud-final.service cloud-init.service cloud-init-local.service}"
 PROVISION_TIMER_CANDIDATES="${PROVISION_TIMER_CANDIDATES:-apt-daily.timer apt-daily-upgrade.timer}"
 PROVISION_BOOT_BLAME_LINES="${PROVISION_BOOT_BLAME_LINES:-20}"
