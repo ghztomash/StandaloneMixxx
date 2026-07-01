@@ -332,6 +332,6 @@ tail -f ~/.mixxx/mixxx_launcher.log
 For more inspiration, check out the amazing work of:
 
 - [Pioneered](https://github.com/timewasternl/Pioneered)
-- [XDJ100SZ](https://github.com/marcmonka/XDJ100SX)
+- [XDJ100SX](https://github.com/marcmonka/XDJ100SX)
 - <https://github.com/EmperorJack/mixxx-pi-config>
 - <https://github.com/fibonacid/foss-dj-player>
