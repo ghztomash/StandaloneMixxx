@@ -15,26 +15,26 @@ if [ -z "${BASH_VERSION:-}" ]; then
     url="$1"
 
     case "$url" in
-      https://github.com/*)
-        repo_path=${url#https://github.com/}
-        ;;
-      git@github.com:*)
-        repo_path=${url#git@github.com:}
-        ;;
-      ssh://git@github.com/*)
-        repo_path=${url#ssh://git@github.com/}
-        ;;
-      *)
-        return 1
-        ;;
+    https://github.com/*)
+      repo_path=${url#https://github.com/}
+      ;;
+    git@github.com:*)
+      repo_path=${url#git@github.com:}
+      ;;
+    ssh://git@github.com/*)
+      repo_path=${url#ssh://git@github.com/}
+      ;;
+    *)
+      return 1
+      ;;
     esac
 
     repo_path=${repo_path%/}
     repo_path=${repo_path%.git}
 
     case "$repo_path" in
-      */*) ;;
-      *) return 1 ;;
+    */*) ;;
+    *) return 1 ;;
     esac
 
     printf 'github.com/%s\n' "$repo_path" | tr '[:upper:]' '[:lower:]'
@@ -140,11 +140,11 @@ By default, installs all components. Use --mixxx, --realtime, --controllers, or 
 to limit the action to one component.
 
 Options:
-  --bootstrap   Clone or update this repository, then run install.sh from the checkout.
-  --mixxx       Operate only on Mixxx.
-  --realtime    Operate only on real-time audio permissions.
-  --controllers  Operate only on controller mappings.
-  --skin         Operate only on the LateNightMini skin.
+  --bootstrap    Clone or update this repository, then run install.sh from the checkout.
+  --mixxx        Install only on Mixxx.
+  --realtime     Install only on real-time audio permissions.
+  --controllers  Install only on controller mappings.
+  --skin         Install only on the LateNightMini skin.
   --custom       Install the custom GitHub release Mixxx .deb.
   --vanilla      Install vanilla Mixxx from apt. Default.
   --remove       Remove selected managed symlinks and delete clean managed checkouts.
@@ -228,12 +228,12 @@ managed_link_path() {
 
   raw_target=$(readlink "$path")
   case "$raw_target" in
-    "$repo_dir"|"$repo_dir"/*) return 0 ;;
+  "$repo_dir" | "$repo_dir"/*) return 0 ;;
   esac
 
   resolved_target=$(readlink -f "$path" 2>/dev/null || true)
   case "$resolved_target" in
-    "$repo_dir"|"$repo_dir"/*) return 0 ;;
+  "$repo_dir" | "$repo_dir"/*) return 0 ;;
   esac
 
   return 1
@@ -244,26 +244,26 @@ canonical_github_repo() {
   local repo_path
 
   case "$url" in
-    https://github.com/*)
-      repo_path="${url#https://github.com/}"
-      ;;
-    git@github.com:*)
-      repo_path="${url#git@github.com:}"
-      ;;
-    ssh://git@github.com/*)
-      repo_path="${url#ssh://git@github.com/}"
-      ;;
-    *)
-      return 1
-      ;;
+  https://github.com/*)
+    repo_path="${url#https://github.com/}"
+    ;;
+  git@github.com:*)
+    repo_path="${url#git@github.com:}"
+    ;;
+  ssh://git@github.com/*)
+    repo_path="${url#ssh://git@github.com/}"
+    ;;
+  *)
+    return 1
+    ;;
   esac
 
   repo_path="${repo_path%/}"
   repo_path="${repo_path%.git}"
 
   case "$repo_path" in
-    */*) ;;
-    *) return 1 ;;
+  */*) ;;
+  *) return 1 ;;
   esac
 
   printf 'github.com/%s\n' "${repo_path,,}"
@@ -345,8 +345,8 @@ remove_checkout_if_clean() {
 
 validate_mixxx_source() {
   case "$MIXXX_SOURCE" in
-    custom|vanilla) ;;
-    *) die "Invalid Mixxx source: $MIXXX_SOURCE. Expected custom or vanilla." ;;
+  custom | vanilla) ;;
+  *) die "Invalid Mixxx source: $MIXXX_SOURCE. Expected custom or vanilla." ;;
   esac
 }
 
@@ -445,7 +445,7 @@ realtime_limit_exists() {
 
     while IFS= read -r line || [ -n "$line" ]; do
       parsed_line="${line%%#*}"
-      if read -r domain limit_type parsed_item parsed_value rest <<< "$parsed_line"; then
+      if read -r domain limit_type parsed_item parsed_value rest <<<"$parsed_line"; then
         if [ "$domain" = "@$group" ] &&
           [ "$limit_type" = "-" ] &&
           [ "$parsed_item" = "$item" ] &&
@@ -453,7 +453,7 @@ realtime_limit_exists() {
           return 0
         fi
       fi
-    done < "$file"
+    done <"$file"
   done
 
   return 1
@@ -500,15 +500,15 @@ detect_mixxx_package_architecture() {
   machine=$(uname -m)
 
   case "$machine" in
-    aarch64|arm64)
-      printf 'aarch64\n'
-      ;;
-    x86_64|amd64)
-      printf 'x86_64\n'
-      ;;
-    *)
-      die "Unsupported Mixxx custom package architecture: $machine. Supported: aarch64, x86_64."
-      ;;
+  aarch64 | arm64)
+    printf 'aarch64\n'
+    ;;
+  x86_64 | amd64)
+    printf 'x86_64\n'
+    ;;
+  *)
+    die "Unsupported Mixxx custom package architecture: $machine. Supported: aarch64, x86_64."
+    ;;
   esac
 }
 
@@ -586,7 +586,7 @@ download_custom_mixxx_deb() {
   asset_glob=$(custom_mixxx_asset_glob)
   printf 'Selecting custom Mixxx release asset matching %s\n' "$asset_glob" >&2
   asset_info=$(select_custom_mixxx_asset "$release_json" "$asset_glob") || die "Could not select a unique custom Mixxx .deb asset matching $asset_glob"
-  mapfile -t asset_lines <<< "$asset_info"
+  mapfile -t asset_lines <<<"$asset_info"
   asset_url="${asset_lines[0]}"
   asset_name="${asset_lines[1]}"
   asset_name="${asset_name##*/}"
@@ -598,17 +598,17 @@ download_custom_mixxx_deb() {
   curl -fsSL "$asset_url" -o "$deb_path"
 
   case "$asset_digest" in
-    sha256:*)
-      checksum="${asset_digest#sha256:}"
-      printf 'Verifying SHA256 digest for %s\n' "$asset_name" >&2
-      printf '%s  %s\n' "$checksum" "$deb_path" | sha256sum -c - >&2
-      ;;
-    "")
-      printf 'No SHA256 digest found in release metadata for %s\n' "$asset_name" >&2
-      ;;
-    *)
-      printf 'Skipping unsupported release asset digest format for %s: %s\n' "$asset_name" "$asset_digest" >&2
-      ;;
+  sha256:*)
+    checksum="${asset_digest#sha256:}"
+    printf 'Verifying SHA256 digest for %s\n' "$asset_name" >&2
+    printf '%s  %s\n' "$checksum" "$deb_path" | sha256sum -c - >&2
+    ;;
+  "")
+    printf 'No SHA256 digest found in release metadata for %s\n' "$asset_name" >&2
+    ;;
+  *)
+    printf 'Skipping unsupported release asset digest format for %s: %s\n' "$asset_name" "$asset_digest" >&2
+    ;;
   esac
 
   printf '%s\n' "$deb_path"
@@ -765,12 +765,12 @@ install_mixxx() {
   print_section "Installing Mixxx ($MIXXX_SOURCE)"
 
   case "$MIXXX_SOURCE" in
-    custom)
-      install_mixxx_custom
-      ;;
-    vanilla)
-      install_mixxx_vanilla
-      ;;
+  custom)
+    install_mixxx_custom
+    ;;
+  vanilla)
+    install_mixxx_vanilla
+    ;;
   esac
 }
 
@@ -839,41 +839,41 @@ main() {
   while [ "$#" -gt 0 ]; do
     arg="$1"
     case "$arg" in
-      --bootstrap)
-        bootstrap_mode=1
-        ;;
-      --mixxx)
-        do_mixxx=1
-        target_specified=1
-        ;;
-      --realtime)
-        do_realtime=1
-        target_specified=1
-        ;;
-      --controllers)
-        do_controllers=1
-        target_specified=1
-        ;;
-      --skin)
-        do_skin=1
-        target_specified=1
-        ;;
-      --custom)
-        MIXXX_SOURCE="custom"
-        ;;
-      --vanilla)
-        MIXXX_SOURCE="vanilla"
-        ;;
-      --remove)
-        remove_mode=1
-        ;;
-      --help)
-        help_mode=1
-        ;;
-      *)
-        usage >&2
-        exit 1
-        ;;
+    --bootstrap)
+      bootstrap_mode=1
+      ;;
+    --mixxx)
+      do_mixxx=1
+      target_specified=1
+      ;;
+    --realtime)
+      do_realtime=1
+      target_specified=1
+      ;;
+    --controllers)
+      do_controllers=1
+      target_specified=1
+      ;;
+    --skin)
+      do_skin=1
+      target_specified=1
+      ;;
+    --custom)
+      MIXXX_SOURCE="custom"
+      ;;
+    --vanilla)
+      MIXXX_SOURCE="vanilla"
+      ;;
+    --remove)
+      remove_mode=1
+      ;;
+    --help)
+      help_mode=1
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
     esac
     shift
   done
