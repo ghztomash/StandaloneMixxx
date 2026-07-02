@@ -1,4 +1,103 @@
 #!/usr/bin/env bash
+if [ -z "${BASH_VERSION:-}" ]; then
+  set -e
+
+  bootstrap_die() {
+    printf 'Error: %s\n' "$1" >&2
+    exit 1
+  }
+
+  bootstrap_require_command() {
+    command -v "$1" >/dev/null 2>&1 || bootstrap_die "Required command not found: $1"
+  }
+
+  bootstrap_canonical_github_repo() {
+    url="$1"
+
+    case "$url" in
+      https://github.com/*)
+        repo_path=${url#https://github.com/}
+        ;;
+      git@github.com:*)
+        repo_path=${url#git@github.com:}
+        ;;
+      ssh://git@github.com/*)
+        repo_path=${url#ssh://git@github.com/}
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+
+    repo_path=${repo_path%/}
+    repo_path=${repo_path%.git}
+
+    case "$repo_path" in
+      */*) ;;
+      *) return 1 ;;
+    esac
+
+    printf 'github.com/%s\n' "$repo_path" | tr '[:upper:]' '[:lower:]'
+  }
+
+  bootstrap_repo_urls_match() {
+    expected_url="$1"
+    actual_url="$2"
+
+    [ "$expected_url" = "$actual_url" ] && return 0
+
+    expected_repo=$(bootstrap_canonical_github_repo "$expected_url" 2>/dev/null || true)
+    actual_repo=$(bootstrap_canonical_github_repo "$actual_url" 2>/dev/null || true)
+
+    [ -n "$expected_repo" ] && [ "$expected_repo" = "$actual_repo" ]
+  }
+
+  bootstrap_ensure_clean_checkout() {
+    [ -d "$BOOTSTRAP_REPO_DIR/.git" ] || bootstrap_die "Existing bootstrap path is not a git repository: $BOOTSTRAP_REPO_DIR"
+
+    origin_url=$(git -C "$BOOTSTRAP_REPO_DIR" config --get remote.origin.url || true)
+    bootstrap_repo_urls_match "$BOOTSTRAP_REPO_URL" "$origin_url" || bootstrap_die "Existing bootstrap repository origin mismatch at $BOOTSTRAP_REPO_DIR. Expected $BOOTSTRAP_REPO_URL but found ${origin_url:-<none>}"
+
+    current_branch=$(git -C "$BOOTSTRAP_REPO_DIR" rev-parse --abbrev-ref HEAD)
+    [ "$current_branch" = "$BOOTSTRAP_REPO_BRANCH" ] || bootstrap_die "Existing bootstrap repository must be on branch $BOOTSTRAP_REPO_BRANCH, found $current_branch at $BOOTSTRAP_REPO_DIR"
+
+    repo_status=$(git -C "$BOOTSTRAP_REPO_DIR" status --porcelain)
+    [ -z "$repo_status" ] || bootstrap_die "Existing bootstrap repository has local changes at $BOOTSTRAP_REPO_DIR. Commit, stash, or discard them before rerunning."
+  }
+
+  bootstrap_clone_or_update_repo() {
+    mkdir -p "$(dirname "$BOOTSTRAP_REPO_DIR")"
+
+    if [ ! -e "$BOOTSTRAP_REPO_DIR" ]; then
+      printf 'Cloning StandaloneMixxx into %s\n' "$BOOTSTRAP_REPO_DIR"
+      git clone --branch "$BOOTSTRAP_REPO_BRANCH" "$BOOTSTRAP_REPO_URL" "$BOOTSTRAP_REPO_DIR"
+      return
+    fi
+
+    bootstrap_ensure_clean_checkout
+
+    printf 'Updating StandaloneMixxx in %s\n' "$BOOTSTRAP_REPO_DIR"
+    git -C "$BOOTSTRAP_REPO_DIR" fetch origin "$BOOTSTRAP_REPO_BRANCH"
+    git -C "$BOOTSTRAP_REPO_DIR" merge --ff-only FETCH_HEAD
+  }
+
+  if [ "${1:-}" != "--bootstrap" ]; then
+    bootstrap_die "Remote install must be run with --bootstrap, for example: sh -c \"\$(curl -fsSL https://raw.githubusercontent.com/ghztomash/StandaloneMixxx/main/install.sh)\" -- --bootstrap"
+  fi
+
+  shift
+  BOOTSTRAP_REPO_URL="${STANDALONE_MIXXX_REPO_URL:-https://github.com/ghztomash/StandaloneMixxx.git}"
+  BOOTSTRAP_REPO_BRANCH="${STANDALONE_MIXXX_REPO_BRANCH:-main}"
+  BOOTSTRAP_REPO_DIR="${STANDALONE_MIXXX_REPO_DIR:-$HOME/.local/share/standalone-mixxx/StandaloneMixxx}"
+
+  bootstrap_require_command git
+  bootstrap_require_command bash
+  bootstrap_clone_or_update_repo
+
+  cd "$BOOTSTRAP_REPO_DIR"
+  exec bash ./install.sh "$@"
+fi
+
 set -euo pipefail
 
 CONTROLLER_REPO_URL="${CONTROLLER_REPO_URL:-${REPO_URL:-https://github.com/ghztomash/FLX-Mixxx.git}}"
@@ -23,11 +122,16 @@ SKIN_REPO_DIR="${SKIN_REPO_DIR:-$HOME/.local/share/standalone-mixxx/LateNightMin
 SKINS_DIR="${SKINS_DIR:-$HOME/.mixxx/skins}"
 SKIN_TARGET="$SKINS_DIR/$SKIN_NAME"
 
+BOOTSTRAP_REPO_URL="${STANDALONE_MIXXX_REPO_URL:-https://github.com/ghztomash/StandaloneMixxx.git}"
+BOOTSTRAP_REPO_BRANCH="${STANDALONE_MIXXX_REPO_BRANCH:-main}"
+BOOTSTRAP_REPO_DIR="${STANDALONE_MIXXX_REPO_DIR:-$HOME/.local/share/standalone-mixxx/StandaloneMixxx}"
+
 declare -a CONTROLLER_SOURCES=()
 
 usage() {
   cat <<EOF
 Usage: $(basename "$0") [--mixxx] [--realtime] [--controllers] [--skin] [--custom|--vanilla] [--remove] [--help]
+       sh -c "\$(curl -fsSL https://raw.githubusercontent.com/ghztomash/StandaloneMixxx/main/install.sh)" -- --bootstrap [options]
 
 Install or update Mixxx, the managed FLX-Mixxx controller mapping checkout,
 and the LateNightMini skin checkout under ~/.local/share/standalone-mixxx.
@@ -36,6 +140,7 @@ By default, installs all components. Use --mixxx, --realtime, --controllers, or 
 to limit the action to one component.
 
 Options:
+  --bootstrap   Clone or update this repository, then run install.sh from the checkout.
   --mixxx       Operate only on Mixxx.
   --realtime    Operate only on real-time audio permissions.
   --controllers  Operate only on controller mappings.
@@ -717,6 +822,7 @@ remove_skin() {
 }
 
 main() {
+  local bootstrap_mode=0
   local remove_mode=0
   local help_mode=0
   local do_mixxx=0
@@ -726,10 +832,16 @@ main() {
   local target_specified=0
   local original_arg_count="$#"
   local arg
+  local skipped_bootstrap=0
+  local bootstrap_args=("$@")
+  local forwarded_args=()
 
   while [ "$#" -gt 0 ]; do
     arg="$1"
     case "$arg" in
+      --bootstrap)
+        bootstrap_mode=1
+        ;;
       --mixxx)
         do_mixxx=1
         target_specified=1
@@ -765,6 +877,23 @@ main() {
     esac
     shift
   done
+
+  if [ "$bootstrap_mode" -eq 1 ]; then
+    for arg in "${bootstrap_args[@]}"; do
+      if [ "$skipped_bootstrap" -eq 0 ] && [ "$arg" = "--bootstrap" ]; then
+        skipped_bootstrap=1
+        continue
+      fi
+
+      forwarded_args+=("$arg")
+    done
+
+    require_command git
+    clone_or_update_repo "$BOOTSTRAP_REPO_DIR" "$BOOTSTRAP_REPO_URL" "$BOOTSTRAP_REPO_BRANCH" "bootstrap"
+
+    cd "$BOOTSTRAP_REPO_DIR"
+    exec bash ./install.sh "${forwarded_args[@]}"
+  fi
 
   if [ "$help_mode" -eq 1 ]; then
     [ "$original_arg_count" -eq 1 ] || die "--help cannot be combined with other arguments"

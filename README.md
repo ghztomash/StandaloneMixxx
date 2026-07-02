@@ -145,7 +145,16 @@ The installer can install Mixxx, real-time audio permissions, controller mapping
 By default, it installs vanilla Mixxx from the Raspberry Pi OS package repository.
 
 ```sh
-chmod +x install.sh
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ghztomash/StandaloneMixxx/main/install.sh)" -- --bootstrap
+```
+
+The bootstrap command clones or updates this repository under `~/.local/share/standalone-mixxx/StandaloneMixxx`, then runs `install.sh` from that checkout.
+It does not run the provisioning script or configure autostart.
+You can override the bootstrap checkout with `STANDALONE_MIXXX_REPO_URL`, `STANDALONE_MIXXX_REPO_BRANCH`, or `STANDALONE_MIXXX_REPO_DIR`.
+
+If you already cloned this repository locally, you can run the installer directly:
+
+```sh
 ./install.sh
 ```
 
