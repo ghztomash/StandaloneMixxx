@@ -149,7 +149,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/ghztomash/StandaloneMixxx/
 ```
 
 The bootstrap command clones or updates this repository under `~/.local/share/standalone-mixxx/StandaloneMixxx`, then runs `install.sh` from that checkout.
-It does not run the provisioning script or configure autostart.
+It does not run the provisioning script. The default install does configure autostart from the managed checkout.
 You can override the bootstrap checkout with `STANDALONE_MIXXX_REPO_URL`, `STANDALONE_MIXXX_REPO_BRANCH`, or `STANDALONE_MIXXX_REPO_DIR`.
 
 If you already cloned this repository locally, you can run the installer directly:
@@ -285,7 +285,7 @@ But if you want the user experience that follows more closely the Rekordbox work
 
 The installer keeps a managed checkout in `~/.local/share/standalone-mixxx/FLX-Mixxx`, updates it on rerun, and symlinks the top-level controller `.js` and `.xml` files into `~/.mixxx/controllers`.
 
-Run `./install.sh` with no target flag to install or update Mixxx, the skin, and controller scripts in one step.
+Run `./install.sh` with no target flag to install or update Mixxx, the skin, controller scripts, and desktop autostart in one step.
 
 To uninstall the managed symlinks later:
 
@@ -307,34 +307,30 @@ sudo raspi-config
 
 Choose the boot option that starts the graphical desktop and logs in automatically.
 
-Copy the launcher and desktop file:
+If you did not run the full installer, install the autostart entry:
 
 ```sh
-cp mixxx-launcher.sh ~/mixxx-launcher.sh
-chmod +x ~/mixxx-launcher.sh
-
-mkdir -p ~/.config/autostart
-cp autostart/mixxx.desktop ~/.config/autostart/mixxx.desktop
+./install.sh --autostart
 ```
 
 Connect and check your controller with `aplay -l`
 
-The default `DEVICE_NAME="DDJFLX"` is intentionally a broad `grep` pattern so it can match related ALSA device names such as DDJFLX2 and DDJFLX4. If you use a different controller, edit `~/mixxx-launcher.sh` and update `DEVICE_NAME` to a pattern shown by `aplay -l`.
+The installer writes `~/.config/autostart/mixxx.desktop` with an absolute path to `mixxx-launcher.sh` in this checkout. The default `DEVICE_NAME="DDJFLX"` is intentionally a broad `grep` pattern so it can match related ALSA device names such as DDJFLX2 and DDJFLX4. If you use a different controller, edit `mixxx-launcher.sh` in this checkout and update `DEVICE_NAME` to a pattern shown by `aplay -l`.
 
-If your Raspberry Pi username is not `pi`, update the `/home/pi/...` path in `~/.config/autostart/mixxx.desktop`. The launcher log uses `$HOME/.mixxx/mixxx_launcher.log`.
+The launcher log uses `$HOME/.mixxx/mixxx_launcher.log`.
 
 Verify the launcher:
 
 ```sh
-bash -n ~/mixxx-launcher.sh
-~/mixxx-launcher.sh
+bash -n mixxx-launcher.sh
+./mixxx-launcher.sh
 tail -f ~/.mixxx/mixxx_launcher.log
 ```
 
 ## Troubleshooting
 
-- Controller not detected: run `aplay -l` and adjust `DEVICE_NAME` in `~/mixxx-launcher.sh`.
-- Mixxx does not start on login: check that `~/.config/autostart/mixxx.desktop` exists and `~/mixxx-launcher.sh` is executable.
+- Controller not detected: run `aplay -l` and adjust `DEVICE_NAME` in `mixxx-launcher.sh`.
+- Mixxx does not start on login: check that `~/.config/autostart/mixxx.desktop` exists and points to this checkout's `mixxx-launcher.sh`.
 - Audio latency is too high: confirm the user is in the `audio` group with `groups`, then check `ulimit -r` and `ulimit -l`.
 - Missing Mixxx icons: install the Qt SVG runtime package for your OS, such as `qt6-svg-plugins` or `libqt6svg6` plus `libqt6svgwidgets6`.
 

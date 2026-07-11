@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Exec=/home/pi/mixxx-launcher.sh
+Exec=/home/pi/.local/share/standalone-mixxx/StandaloneMixxx/mixxx-launcher.sh
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true

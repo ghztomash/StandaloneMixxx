@@ -126,18 +126,24 @@ BOOTSTRAP_REPO_URL="${STANDALONE_MIXXX_REPO_URL:-https://github.com/ghztomash/St
 BOOTSTRAP_REPO_BRANCH="${STANDALONE_MIXXX_REPO_BRANCH:-main}"
 BOOTSTRAP_REPO_DIR="${STANDALONE_MIXXX_REPO_DIR:-$HOME/.local/share/standalone-mixxx/StandaloneMixxx}"
 
+INSTALLER_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+AUTOSTART_TEMPLATE="$INSTALLER_DIR/autostart/mixxx.desktop"
+LAUNCHER_PATH="$INSTALLER_DIR/mixxx-launcher.sh"
+AUTOSTART_ENTRY_NAME="mixxx.desktop"
+AUTOSTART_MANAGED_MARKER="X-StandaloneMixxx-Managed=true"
+
 declare -a CONTROLLER_SOURCES=()
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--mixxx] [--realtime] [--controllers] [--skin] [--custom|--vanilla] [--remove] [--help]
+Usage: $(basename "$0") [--mixxx] [--realtime] [--controllers] [--skin] [--autostart] [--custom|--vanilla] [--remove] [--help]
        sh -c "\$(curl -fsSL https://raw.githubusercontent.com/ghztomash/StandaloneMixxx/main/install.sh)" -- --bootstrap [options]
 
 Install or update Mixxx, the managed FLX-Mixxx controller mapping checkout,
-and the LateNightMini skin checkout under ~/.local/share/standalone-mixxx.
+the LateNightMini skin checkout, and desktop autostart.
 
-By default, installs all components. Use --mixxx, --realtime, --controllers, or --skin
-to limit the action to one component.
+By default, installs all components. Use --mixxx, --realtime, --controllers, --skin,
+or --autostart to limit the action to one component.
 
 Options:
   --bootstrap    Clone or update this repository, then run install.sh from the checkout.
@@ -145,6 +151,7 @@ Options:
   --realtime     Install only on real-time audio permissions.
   --controllers  Install only on controller mappings.
   --skin         Install only on the LateNightMini skin.
+  --autostart    Install only on desktop autostart.
   --custom       Install the custom GitHub release Mixxx .deb.
   --vanilla      Install vanilla Mixxx from apt. Default.
   --remove       Remove selected managed symlinks and delete clean managed checkouts.
@@ -181,6 +188,7 @@ ensure_prerequisites() {
   local need_realtime="$2"
   local need_controllers="$3"
   local need_skin="$4"
+  local need_autostart="$5"
 
   if [ "$need_controllers" -eq 1 ] || [ "$need_skin" -eq 1 ]; then
     require_command git
@@ -208,6 +216,12 @@ ensure_prerequisites() {
     require_command mkdir
     require_command tee
   fi
+
+  if [ "$need_autostart" -eq 1 ]; then
+    require_command mkdir
+    require_command mktemp
+    require_command mv
+  fi
 }
 
 run_as_root() {
@@ -216,6 +230,76 @@ run_as_root() {
   else
     sudo "$@"
   fi
+}
+
+target_autostart_home() {
+  printf '%s\n' "$HOME"
+}
+
+target_autostart_dir() {
+  if [ -n "${AUTOSTART_DIR:-}" ]; then
+    printf '%s\n' "$AUTOSTART_DIR"
+    return
+  fi
+
+  printf '%s/.config/autostart\n' "$(target_autostart_home)"
+}
+
+desktop_exec_value() {
+  local path="$1"
+  local escaped="$path"
+
+  escaped="${escaped//\\/\\\\}"
+  escaped="${escaped//\"/\\\"}"
+  printf '"%s"\n' "$escaped"
+}
+
+legacy_autostart_entry() {
+  local path="$1"
+
+  grep -Fxq 'Name=mixxx launcher' "$path" &&
+    grep -Eq '^Exec=.*mixxx-launcher\.sh"?$' "$path"
+}
+
+managed_autostart_entry() {
+  local path="$1"
+
+  grep -Fxq "$AUTOSTART_MANAGED_MARKER" "$path"
+}
+
+verify_autostart_target() {
+  local target="$1"
+
+  [ -e "$target" ] || return 0
+
+  if managed_autostart_entry "$target" || legacy_autostart_entry "$target"; then
+    return 0
+  fi
+
+  die "Autostart target already exists and is not managed by this installer: $target"
+}
+
+render_autostart_entry() {
+  local target="$1"
+  local exec_value
+  local line
+
+  exec_value=$(desktop_exec_value "$LAUNCHER_PATH")
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+    Exec=*)
+      printf 'Exec=%s\n' "$exec_value"
+      ;;
+    "$AUTOSTART_MANAGED_MARKER")
+      ;;
+    *)
+      printf '%s\n' "$line"
+      ;;
+    esac
+  done <"$AUTOSTART_TEMPLATE" >"$target"
+
+  printf '%s\n' "$AUTOSTART_MANAGED_MARKER" >>"$target"
 }
 
 managed_link_path() {
@@ -821,6 +905,45 @@ remove_skin() {
   remove_checkout_if_clean "$SKIN_REPO_DIR" "skin"
 }
 
+install_autostart() {
+  local autostart_dir
+  local target
+  local tmp_target
+
+  print_section "Installing desktop autostart"
+
+  [ -f "$AUTOSTART_TEMPLATE" ] || die "Autostart template not found: $AUTOSTART_TEMPLATE"
+  [ -f "$LAUNCHER_PATH" ] || die "Launcher script not found: $LAUNCHER_PATH"
+
+  autostart_dir=$(target_autostart_dir)
+  target="$autostart_dir/$AUTOSTART_ENTRY_NAME"
+
+  mkdir -p "$autostart_dir"
+  verify_autostart_target "$target"
+
+  tmp_target=$(mktemp "$autostart_dir/.mixxx.desktop.XXXXXX")
+  render_autostart_entry "$tmp_target"
+  mv "$tmp_target" "$target"
+
+  printf 'Installed desktop autostart %s -> %s\n' "$target" "$LAUNCHER_PATH"
+}
+
+remove_autostart() {
+  local target
+
+  print_section "Removing desktop autostart"
+
+  target="$(target_autostart_dir)/$AUTOSTART_ENTRY_NAME"
+
+  if [ -e "$target" ] && { managed_autostart_entry "$target" || legacy_autostart_entry "$target"; }; then
+    rm "$target"
+    printf 'Removed desktop autostart %s\n' "$target"
+    return
+  fi
+
+  printf 'No managed desktop autostart found at %s\n' "$target"
+}
+
 main() {
   local bootstrap_mode=0
   local remove_mode=0
@@ -829,6 +952,7 @@ main() {
   local do_realtime=0
   local do_controllers=0
   local do_skin=0
+  local do_autostart=0
   local target_specified=0
   local original_arg_count="$#"
   local arg
@@ -856,6 +980,10 @@ main() {
       ;;
     --skin)
       do_skin=1
+      target_specified=1
+      ;;
+    --autostart)
+      do_autostart=1
       target_specified=1
       ;;
     --custom)
@@ -907,18 +1035,20 @@ main() {
     if [ "$remove_mode" -eq 1 ]; then
       do_controllers=1
       do_skin=1
+      do_autostart=1
     else
       do_mixxx=1
       do_realtime=1
       do_controllers=1
       do_skin=1
+      do_autostart=1
     fi
   fi
 
   if [ "$remove_mode" -eq 1 ]; then
-    ensure_prerequisites 0 0 "$do_controllers" "$do_skin"
+    ensure_prerequisites 0 0 "$do_controllers" "$do_skin" "$do_autostart"
   else
-    ensure_prerequisites "$do_mixxx" "$do_realtime" "$do_controllers" "$do_skin"
+    ensure_prerequisites "$do_mixxx" "$do_realtime" "$do_controllers" "$do_skin" "$do_autostart"
   fi
 
   if [ "$remove_mode" -eq 1 ]; then
@@ -926,6 +1056,7 @@ main() {
     [ "$do_realtime" -eq 0 ] || remove_realtime
     [ "$do_controllers" -eq 0 ] || remove_controllers
     [ "$do_skin" -eq 0 ] || remove_skin
+    [ "$do_autostart" -eq 0 ] || remove_autostart
     return
   fi
 
@@ -933,6 +1064,7 @@ main() {
   [ "$do_realtime" -eq 0 ] || install_realtime
   [ "$do_controllers" -eq 0 ] || install_controllers
   [ "$do_skin" -eq 0 ] || install_skin
+  [ "$do_autostart" -eq 0 ] || install_autostart
 }
 
 main "$@"
