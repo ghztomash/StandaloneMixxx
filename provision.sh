@@ -231,8 +231,6 @@ print_reboot_status() {
   if [ -f /var/run/reboot-required ]; then
     printf 'Reboot required: yes\n'
     print_file_if_readable /var/run/reboot-required.pkgs
-  else
-    printf 'Reboot required: no marker found at /var/run/reboot-required\n'
   fi
 }
 
@@ -268,7 +266,7 @@ print_report() {
 
   printf '\nDisplay overlays, boot cmdline, USB tuning, and real-time audio limits were not changed.\n'
   printf 'Run ./install.sh --realtime to configure Mixxx real-time audio permissions.\n'
-  printf 'Review display-specific changes manually in /boot/firmware/config.txt.\n'
+  printf 'Review display-specific changes manually in /boot/firmware/config.txt\n'
 }
 
 main() {
