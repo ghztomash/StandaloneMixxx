@@ -319,7 +319,9 @@ cp autostart/mixxx.desktop ~/.config/autostart/mixxx.desktop
 
 Connect and check your controller with `aplay -l`
 
-Edit `~/mixxx-launcher.sh` and update `DEVICE_NAME="DDJFLX"` to match your controller. If your Raspberry Pi username is not `pi`, also update the `/home/pi/...` paths in `~/mixxx-launcher.sh` and `~/.config/autostart/mixxx.desktop`.
+The default `DEVICE_NAME="DDJFLX"` is intentionally a broad `grep` pattern so it can match related ALSA device names such as DDJFLX2 and DDJFLX4. If you use a different controller, edit `~/mixxx-launcher.sh` and update `DEVICE_NAME` to a pattern shown by `aplay -l`.
+
+If your Raspberry Pi username is not `pi`, update the `/home/pi/...` path in `~/.config/autostart/mixxx.desktop`. The launcher log uses `$HOME/.mixxx/mixxx_launcher.log`.
 
 Verify the launcher:
 

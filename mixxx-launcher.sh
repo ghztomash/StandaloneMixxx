@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# DEVICE_NAME is used as a grep pattern so one value can match multiple devices like DDJFLX2 and DDJFLX4
 DEVICE_NAME="DDJFLX"
 MIXXX_BIN="/usr/bin/mixxx"
-LOG_FILE="/home/pi/.mixxx/mixxx_launcher.log"
+LOG_FILE="$HOME/.mixxx/mixxx_launcher.log"
 SLEEP_INTERVAL=1
 
 echo "Script started. Waiting for device: $DEVICE_NAME"
