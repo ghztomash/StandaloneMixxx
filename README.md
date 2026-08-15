@@ -1,64 +1,65 @@
 # Standalone Mixxx
 
-A Raspberry Pi setup for running Mixxx as a small standalone DJ deck with a touch screen and a Pioneer FLX controller.
+A Raspberry Pi setup for running Mixxx as a standalone DJ deck with a touchscreen and a Pioneer DDJ-FLX controller.
 
 ![Preview](./preview.jpg)
 
-The easy path is one command. It installs Mixxx, real-time audio permissions, controller mappings, the LateNightMini skin, and desktop autostart.
+Run this command to install Mixxx, configure real-time audio permissions, and set up the controller mappings, LateNightMini skin, and desktop autostart:
 
 ```sh
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/ghztomash/StandaloneMixxx/main/install.sh)" -- --bootstrap
 ```
 
-After it finishes, reboot, plug in the controller, and log in to the desktop. The launcher waits for a `DDJFLX` audio device and starts Mixxx once it appears.
+When the installation finishes, reboot, connect the controller, and log in to the desktop. The launcher starts Mixxx when it detects a `DDJFLX` audio device.
 
 The install command does not run `provision.sh`. That cleanup step is optional and described later.
 
 ## What Gets Installed
 
 - [Mixxx](https://mixxx.org/) from Raspberry Pi OS packages by default.
-- [My custom Mixxx fork](https://github.com/ghztomash/mixxx), optionally, with extra Rekordbox-oriented fixes.
+- An optional [my custom 2.7 Mixxx build](https://github.com/ghztomash/mixxx) with stems, additional Rekordbox support and controller fixes.
 - [FLX-Mixxx controller mappings](https://github.com/ghztomash/FLX-Mixxx) for DDJ-FLX controllers.
 - [LateNightMini skin](https://github.com/ghztomash/LateNightMini), made for small touch displays.
 - Desktop autostart using `mixxx-launcher.sh`.
 
-Useful related links:
+Links to specific component repos:
 
-- Custom Mixxx repo: <https://github.com/ghztomash/mixxx>
+- Custom Mixxx build: <https://github.com/ghztomash/mixxx>
 - LateNightMini skin: <https://github.com/ghztomash/LateNightMini>
 - FLX controller mappings: <https://github.com/ghztomash/FLX-Mixxx>
 
-After installing, open Mixxx and select `LateNightMini` in Preferences > Interface. For the controller, select the DDJ-FLX2 or DDJ-FLX4 mapping named `Pioneer DDJ-FLX2-ghz` or `Pioneer DDJ-FLX4-ghz` in Preferences > Controllers.
+After installation, select `LateNightMini` under Preferences > Interface. Under Preferences > Controllers, select `Pioneer DDJ-FLX2-ghz` or `Pioneer DDJ-FLX4-ghz` for your controller.
 
 ## Custom Mixxx Build
 
-To use my custom Mixxx build instead of the normal Raspberry Pi OS package:
+To use my custom Mixxx build instead of the vanilla package:
 
 ```sh
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/ghztomash/StandaloneMixxx/main/install.sh)" -- --bootstrap --custom
 ```
 
-This downloads the latest `.deb` from [my Mixxx releases](https://github.com/ghztomash/mixxx/releases) and installs it with apt.
+This downloads the latest `.deb` build from [my releases](https://github.com/ghztomash/mixxx/releases) and installs it with apt.
 
-The custom build is where I keep fixes and experiments for:
+The custom build adds or improves:
 
 - Rekordbox library waveform overviews
 - Rekordbox library cover art
 - Highlighting loaded tracks
 - Marking played tracks
 - Jog wheel response fixes
+- Ability to quit full screen Mixxx without a keyboard
 
 ## Tested Setup
 
-- Raspberry Pi 5 with 4 GB RAM
+- Raspberry Pi 5 and Pi 4B with 4 GB RAM
 - Raspberry Pi OS Desktop based on Debian 13 Trixie
 - Pimoroni HyperPixel 4.0 touch display
 - Pioneer DJ DDJ-FLX4 and DDJ-FLX2 controllers
 - Mixxx from Raspberry Pi OS packages or my custom `.deb`
 
-Other Raspberry Pi and controller combinations may work, but this is the setup I test.
+Other Raspberry Pi models and controllers may work, but are not tested here.
 
-## Install Examples
+## Install Command Examples
 
 The bootstrap command clones this repository into:
 
@@ -66,15 +67,17 @@ The bootstrap command clones this repository into:
 ~/.local/share/standalone-mixxx/StandaloneMixxx
 ```
 
-Then it runs `install.sh` from that checkout. You can rerun the same command later to update the installer, skin, and controller mappings.
+It then runs `install.sh` from that checkout. Run the command again to update the installer, skin, and controller mappings.
 
-Install everything with normal Mixxx:
+### Install only specific components
+
+Install all components with the Raspberry Pi OS Mixxx package:
 
 ```sh
 ./install.sh
 ```
 
-Install everything with the custom Mixxx build:
+Install all components with the custom Mixxx build:
 
 ```sh
 ./install.sh --custom
@@ -110,7 +113,7 @@ Install only desktop autostart:
 ./install.sh --autostart
 ```
 
-The selected parts can be combined:
+Options can be combined:
 
 ```sh
 ./install.sh --controllers --skin
@@ -119,27 +122,27 @@ The selected parts can be combined:
 
 ## Updates
 
-Rerun the same install command whenever you want to update the managed pieces.
+Rerun the installer to update the components it manages.
 
-For the bootstrap install:
+For the bootstrap:
 
 ```sh
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/ghztomash/StandaloneMixxx/main/install.sh)" -- --bootstrap
 ```
 
-For a local checkout:
+Or in the local checkout:
 
 ```sh
 ./install.sh
 ```
 
-The installer updates clean git checkouts with `git fetch` and a fast-forward merge. If you changed files inside one of those checkouts, it stops instead of overwriting your work.
+The installer updates clean Git checkouts with `git fetch` and a fast-forward merge. If a checkout contains local changes, it stops without overwriting them.
 
-Mixxx package updates are handled through apt. When Mixxx is selected, the script runs `apt-get update` and installs the needed packages again. For `--custom`, it fetches the latest release metadata from GitHub and downloads the matching `.deb`.
+Mixxx package updates use apt. With `--custom`, the installer checks the latest GitHub release and downloads the matching `.deb`.
 
 ## Uninstall
 
-Remove the managed skin link, controller links, desktop autostart entry, and clean managed checkouts:
+Remove the managed skin link, controller links, desktop autostart entry, and clean controller and skin checkouts:
 
 ```sh
 ./install.sh --remove
@@ -153,10 +156,10 @@ Remove only one managed part:
 ./install.sh --autostart --remove
 ```
 
-The script does not remove the Mixxx package or undo real-time audio settings. That is intentional, because those are system-level changes. If needed, remove Mixxx with apt:
+The script does not remove the Mixxx package or undo the system-wide real-time audio settings. To remove Mixxx, use apt:
 
 ```sh
-sudo apt-get remove mixxx
+sudo apt remove mixxx
 ```
 
 For real-time audio settings, check:
@@ -206,9 +209,9 @@ System real-time audio limits:
 Recommended hardware:
 
 - [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/?variant=raspberry-pi-5-4gb), tested with 4 GB RAM.
-- [Raspberry Pi USB-C power supply](https://www.raspberrypi.com/products/27w-power-supply/), with enough current for the controller.
+- [Raspberry Pi USB-C power supply](https://www.raspberrypi.com/products/27w-power-supply/) with enough current for the controller.
 - Fast microSD card, 16 GB or larger.
-- Touch display such as [Pimoroni HyperPixel 4.0](https://shop.pimoroni.com/products/hyperpixel-4?variant=12569485443155), 800x480 or bigger.
+- Touch display such as the [Pimoroni HyperPixel 4.0](https://shop.pimoroni.com/products/hyperpixel-4?variant=12569485443155), with a resolution of at least 800x480.
 - [Pioneer DJ DDJ-FLX4](https://www.pioneerdj.com/en/product/dj-controllers/ddj-flx4/) or DDJ-FLX2.
 - Mouse and keyboard for first setup.
 
@@ -216,7 +219,15 @@ Recommended hardware:
 
 Install Raspberry Pi OS with [Raspberry Pi Imager](https://www.raspberrypi.com/documentation/computers/getting-started.html#raspberry-pi-imager).
 
-I use Raspberry Pi OS Desktop based on Debian Trixie. Raspberry Pi OS Lite should also work, but you will need to install and configure the desktop parts yourself.
+This setup is tested on Raspberry Pi OS Desktop based on Debian Trixie. Raspberry Pi OS Lite may work, but requires a separately installed and configured desktop environment.
+
+For an alternative preconfigured system, see the [mixxx-pi-gen image](https://github.com/fayaaz/mixxx-pi-gen). It uses Sway and includes Mixxx 2.4. You can install my custom Mixxx 2.7 build, controller mappings, and skin on top:
+
+```sh
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ghztomash/StandaloneMixxx/main/install.sh)" -- --bootstrap --mixxx --controllers --skin --custom
+```
+
+There is no need to add `--autostart` as the image starts Mixxx through Sway.
 
 ## Display Notes
 
@@ -257,7 +268,7 @@ Wants=
 Wants=dev-dri-card0.device
 ```
 
-Compare this with `systemctl cat lightdm` on your system before saving. Keep any other entries your installed unit needs, then reload systemd:
+Compare the override with the output of `systemctl cat lightdm` before saving it. Preserve any other entries required by the installed unit, then reload systemd:
 
 ```sh
 sudo systemctl daemon-reload
@@ -265,7 +276,7 @@ sudo systemctl daemon-reload
 
 ## Provisioning
 
-`provision.sh` is optional. Use it after a fresh Raspberry Pi OS Desktop install if you want to remove desktop extras, disable some unused services, update packages, and print diagnostics.
+The optional `provision.sh` script removes selected desktop extras, disables unused services, updates packages, and prints diagnostics. Use it optionally on a fresh Raspberry Pi OS Desktop installation.
 
 ```sh
 ./provision.sh
@@ -335,4 +346,14 @@ cmake ..
 cmake --build . --parallel "$(nproc)"
 ```
 
-Building on the Raspberry Pi can take a long time. See the official Mixxx [developer documentation](https://github.com/mixxxdj/mixxx/blob/main/CONTRIBUTING.md) for more detail.
+Building on the Raspberry Pi can take a long time. A Raspberry Pi with at least 4 GB RAM is recommended for building. See the official Mixxx [developer documentation](https://github.com/mixxxdj/mixxx/blob/main/CONTRIBUTING.md) for more detail.
+
+## Acknowledgments
+
+For more inspiration, check out:
+
+- [Pioneered](https://github.com/timewasternl/Pioneered)
+- [XDJ100SX](https://github.com/marcmonka/XDJ100SX)
+- [mixxx-pi-gen](https://github.com/fayaaz/mixxx-pi-gen)
+- [mixxx-pi-config](https://github.com/EmperorJack/mixxx-pi-config)
+- [foss-dj-player](https://github.com/fibonacid/foss-dj-player)
